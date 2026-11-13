@@ -68,8 +68,9 @@ export const InstructorRegisterModal: React.FC<InstructorRegisterModalProps> = (
       return;
     }
 
+    const sanitizedDocId = docNumber.trim().replace(/[^a-zA-Z0-9_-]/g, '') || String(Date.now());
     const newInstructor: InstructorRecord = {
-      id: `INST-${docNumber.trim()}`,
+      id: `INST-${sanitizedDocId}`,
       fullName: fullName.trim(),
       docNumber: docNumber.trim(),
       username: username.trim().toLowerCase(),

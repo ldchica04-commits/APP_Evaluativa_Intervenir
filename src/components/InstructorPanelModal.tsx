@@ -176,7 +176,9 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
 
   // Scope apprentices by loggedInInstructor's assigned fichas if logged in as individual instructor
   const scopedApprentices = loggedInInstructor
-    ? apprentices.filter((app) => loggedInInstructor.fichas.includes(app.ficha))
+    ? apprentices.filter((app) =>
+        loggedInInstructor.fichas.some((f) => f.trim() === app.ficha.trim())
+      )
     : apprentices;
 
   const scopedDocNumbers = new Set(scopedApprentices.map((a) => a.docNumber.trim()));
@@ -581,11 +583,11 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
             </div>
 
             {/* Filter & Action Controls Bar */}
-            <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-2xs flex flex-col gap-3.5 w-full min-w-0">
               
               {/* Search & Filter */}
-              <div className="flex flex-wrap items-center gap-3 flex-1">
-                <div className="relative flex-1 min-w-[220px]">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full min-w-0">
+                <div className="relative flex-1 min-w-0">
                   <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
@@ -596,7 +598,7 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
                   />
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <span className="text-xs font-bold text-slate-600 uppercase">Ficha:</span>
                   <select
                     value={selectedFichaFilter}
@@ -614,22 +616,24 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
               </div>
 
               {/* Action Buttons: Manage Instructors, Analytics Dashboard & Export CSV */}
-              <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                <button
-                  onClick={() => setIsManageInstructorsOpen(true)}
-                  className="px-3.5 py-2.5 text-xs font-bold text-[#00324D] bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] cursor-pointer"
-                  title="Administrar usuarios instructor: cambiar contraseña, eliminar o corregir información"
-                >
-                  <UserCog className="w-4 h-4 text-[#007832]" />
-                  <span>Administrar Instructores ({instructors.length})</span>
-                </button>
+              <div className="flex flex-wrap items-center gap-2.5 w-full pt-3 border-t border-slate-100">
+                {!loggedInInstructor && (
+                  <button
+                    onClick={() => setIsManageInstructorsOpen(true)}
+                    className="px-3.5 py-2.5 text-xs font-bold text-[#00324D] bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] cursor-pointer"
+                    title="Administrar usuarios instructor: cambiar contraseña, eliminar o corregir información"
+                  >
+                    <UserCog className="w-4 h-4 text-[#007832] shrink-0" />
+                    <span>Administrar Instructores ({instructors.length})</span>
+                  </button>
+                )}
 
                 <button
                   onClick={() => setIsCertificatesHistoryOpen(true)}
                   className="px-3.5 py-2.5 text-xs font-bold text-white bg-[#00324D] hover:bg-[#002235] rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] cursor-pointer"
                   title="Ver historial detallado de constancias emitidas"
                 >
-                  <FileText className="w-4 h-4 text-[#39A900]" />
+                  <FileText className="w-4 h-4 text-[#39A900] shrink-0" />
                   <span>Historial de Constancias ({allCertificates.length})</span>
                 </button>
 
@@ -638,7 +642,7 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
                   className="px-3.5 py-2.5 text-xs font-bold text-white bg-[#39A900] hover:bg-[#007832] rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] cursor-pointer"
                   title="Ver video del manual del instructor"
                 >
-                  <Video className="w-4 h-4" />
+                  <Video className="w-4 h-4 shrink-0" />
                   <span>Manual del Instructor</span>
                 </button>
 
@@ -648,7 +652,7 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
                     className="px-4 py-2.5 text-xs font-bold text-white bg-[#00324D] hover:bg-[#002235] rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] cursor-pointer"
                     title="Ver Dashboard de gráficos sobre Estilos de Aprendizaje y Eficiencia"
                   >
-                    <BarChart2 className="w-4 h-4 text-[#39A900]" />
+                    <BarChart2 className="w-4 h-4 text-[#39A900] shrink-0" />
                     <span>Ver Dashboard Analítico</span>
                   </button>
                 )}
@@ -658,7 +662,7 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
                   className="px-4 py-2.5 text-xs font-bold text-white bg-[#39A900] hover:bg-[#007832] rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] cursor-pointer"
                   title="Descargar reporte consolidado directamente en Excel (.xls)"
                 >
-                  <FileSpreadsheet className="w-4 h-4" />
+                  <FileSpreadsheet className="w-4 h-4 shrink-0" />
                   <span>Descargar en Excel</span>
                 </button>
               </div>

@@ -1,0 +1,150 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidDocType(dt) {
+      return dt in ['C.C.', 'T.I.', 'C.E.', 'P.P.T.'];
+    }
+
+    function isValidKolbStyle(style) {
+      return style in ['Acomodador', 'Divergente', 'Convergente', 'Asimilador'];
+    }
+
+    function isValidRapId(rapId) {
+      return rapId in ['rap1', 'rap2', 'rap3', 'rap4'];
+    }
+
+    function isValidApprentice(data) {
+      return data.keys().hasAll(['id', 'fullName', 'docType', 'docNumber', 'ficha', 'center', 'regional', 'registeredAt']) &&
+        data.keys().hasOnly([
+          'id', 'fullName', 'docType', 'docNumber', 'ficha',
+          'center', 'regional', 'registeredAt', 'kolbResult',
+          'rapsProgress', 'attemptsCountByRap', 'totalAttempts', 'lastResult', 'updatedAt'
+        ]) &&
+        isValidId(data.id) &&
+        data.docNumber is string && data.docNumber.size() >= 1 && data.docNumber.size() <= 40 &&
+        data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 150 &&
+        data.docType is string && isValidDocType(data.docType) &&
+        data.ficha is string && data.ficha.size() >= 1 && data.ficha.size() <= 30 &&
+        data.center is string && data.center.size() >= 1 && data.center.size() <= 160 &&
+        data.regional is string && data.regional.size() >= 1 && data.regional.size() <= 100 &&
+        data.registeredAt is string && data.registeredAt.size() >= 1 && data.registeredAt.size() <= 40 &&
+        (!('kolbResult' in data) || data.kolbResult == null || (
+          data.kolbResult is map &&
+          'style' in data.kolbResult &&
+          data.kolbResult.style is string &&
+          isValidKolbStyle(data.kolbResult.style)
+        )) &&
+        (!('rapsProgress' in data) || data.rapsProgress is map) &&
+        (!('attemptsCountByRap' in data) || data.attemptsCountByRap is map) &&
+        (!('totalAttempts' in data) || (data.totalAttempts is number && data.totalAttempts >= 0 && data.totalAttempts <= 1000)) &&
+        (!('lastResult' in data) || data.lastResult == null || data.lastResult is map) &&
+        (!('updatedAt' in data) || data.updatedAt is string);
+    }
+
+    function isValidInstructor(data) {
+      return data.keys().hasAll(['id', 'fullName', 'docNumber', 'username', 'password', 'fichas', 'registeredAt']) &&
+        data.keys().hasOnly(['id', 'fullName', 'docNumber', 'username', 'password', 'fichas', 'registeredAt']) &&
+        isValidId(data.id) &&
+        data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 150 &&
+        data.docNumber is string && data.docNumber.size() >= 1 && data.docNumber.size() <= 40 &&
+        data.username is string && data.username.size() >= 1 && data.username.size() <= 120 &&
+        data.password is string && data.password.size() >= 1 && data.password.size() <= 120 &&
+        data.fichas is list && data.fichas.size() >= 1 && data.fichas.size() <= 50 && data.fichas[0] is string &&
+        data.registeredAt is string && data.registeredAt.size() >= 1 && data.registeredAt.size() <= 40;
+    }
+
+    function isValidCertificate(data) {
+      return data.keys().hasAll([
+          'certificateId', 'rapId', 'rapTitle', 'rapCode',
+          'evaluatedStyle', 'evaluatedStyleTag', 'apprentice',
+          'completedAt', 'score', 'maxScore', 'percentage',
+          'concept', 'isApproved', 'questionResults'
+        ]) &&
+        data.keys().hasOnly([
+          'certificateId', 'rapId', 'rapTitle', 'rapCode',
+          'evaluatedStyle', 'evaluatedStyleTag', 'evaluationTechnique',
+          'evaluationInstrument', 'evidenceType', 'apprentice',
+          'completedAt', 'score', 'maxScore', 'percentage',
+          'concept', 'isApproved', 'questionResults'
+        ]) &&
+        isValidId(data.certificateId) &&
+        data.rapId is string && isValidRapId(data.rapId) &&
+        data.rapTitle is string && data.rapTitle.size() >= 1 && data.rapTitle.size() <= 200 &&
+        data.rapCode is string && data.rapCode.size() >= 1 && data.rapCode.size() <= 40 &&
+        data.evaluatedStyle is string && isValidKolbStyle(data.evaluatedStyle) &&
+        data.evaluatedStyleTag is string && data.evaluatedStyleTag.size() <= 120 &&
+        (!('evaluationTechnique' in data) || (data.evaluationTechnique is string && data.evaluationTechnique.size() <= 160)) &&
+        (!('evaluationInstrument' in data) || (data.evaluationInstrument is string && data.evaluationInstrument.size() <= 160)) &&
+        (!('evidenceType' in data) || (data.evidenceType is string && data.evidenceType.size() <= 160)) &&
+        data.apprentice is map &&
+        data.completedAt is string && data.completedAt.size() >= 1 && data.completedAt.size() <= 60 &&
+        data.score is number && data.score >= 0 && data.score <= 100 &&
+        data.maxScore is number && data.maxScore >= 1 && data.maxScore <= 100 &&
+        data.percentage is number && data.percentage >= 0 && data.percentage <= 100 &&
+        data.concept is string && data.concept in ['APROBADO', 'NO APROBADO'] &&
+        data.isApproved is bool &&
+        data.questionResults is list && data.questionResults.size() >= 1 && data.questionResults.size() <= 20;
+    }
+
+    match /apprentices/{docId} {
+      allow get: if isValidId(docId);
+      allow list: if true;
+      allow create: if isValidId(docId) &&
+        isValidApprentice(incoming()) &&
+        incoming().id == docId;
+      allow update: if isValidId(docId) &&
+        isValidApprentice(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().registeredAt == existing().registeredAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'fullName', 'docType', 'docNumber', 'ficha', 'center', 'regional',
+          'kolbResult', 'rapsProgress', 'attemptsCountByRap',
+          'totalAttempts', 'lastResult', 'updatedAt'
+        ]);
+      allow delete: if isValidId(docId);
+    }
+
+    match /instructors/{instructorId} {
+      allow get: if isValidId(instructorId);
+      allow list: if true;
+      allow create: if isValidId(instructorId) &&
+        isValidInstructor(incoming()) &&
+        incoming().id == instructorId;
+      allow update: if isValidId(instructorId) &&
+        isValidInstructor(incoming()) &&
+        incoming().id == existing().id &&
+        incoming().registeredAt == existing().registeredAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'fullName', 'docNumber', 'username', 'password', 'fichas'
+        ]);
+      allow delete: if isValidId(instructorId);
+    }
+
+    match /certificates/{certificateId} {
+      allow get: if isValidId(certificateId);
+      allow list: if true;
+      allow create: if isValidId(certificateId) &&
+        isValidCertificate(incoming()) &&
+        incoming().certificateId == certificateId;
+      allow update: if false;
+      allow delete: if isValidId(certificateId);
+    }
+  }
+}

@@ -15,6 +15,27 @@ import { AnalyticsDashboardModal } from './components/AnalyticsDashboardModal';
 import { ApprenticeManualModal } from './components/ApprenticeManualModal';
 import { SenaLogo } from './components/SenaLogo';
 import { BookOpen, Award, ArrowLeft, FileText, CheckCircle2 } from 'lucide-react';
+import {
+  deleteApprenticeFromDb,
+  deleteInstructorFromDb,
+  makeSafeDocId,
+  saveCertificateToDb,
+  seedInitialDataIfNeeded,
+  subscribeToApprentices,
+  subscribeToCertificates,
+  subscribeToInstructors,
+  updateApprenticeKolbInDb,
+  updateApprenticeProgressInDb,
+  upsertApprenticeToDb,
+  upsertInstructorToDb,
+} from './services/firestoreService';
+
+const createEmptyRapsProgress = (): Record<RAPId, RapProgress> => ({
+  rap1: { rapId: 'rap1', isApproved: false, bestPercentage: 0, attemptsByStyle: {} },
+  rap2: { rapId: 'rap2', isApproved: false, bestPercentage: 0, attemptsByStyle: {} },
+  rap3: { rapId: 'rap3', isApproved: false, bestPercentage: 0, attemptsByStyle: {} },
+  rap4: { rapId: 'rap4', isApproved: false, bestPercentage: 0, attemptsByStyle: {} },
+});
 
 const DEFAULT_APPRENTICES_REGISTRY: ApprenticeRecord[] = [
   {
@@ -174,13 +195,56 @@ export default function App() {
         return JSON.parse(storedProg);
       }
     } catch {}
-    return {
-      rap1: { rapId: 'rap1', isApproved: false, bestPercentage: 0, attemptsByStyle: {} },
-      rap2: { rapId: 'rap2', isApproved: false, bestPercentage: 0, attemptsByStyle: {} },
-      rap3: { rapId: 'rap3', isApproved: false, bestPercentage: 0, attemptsByStyle: {} },
-      rap4: { rapId: 'rap4', isApproved: false, bestPercentage: 0, attemptsByStyle: {} },
-    };
+    return createEmptyRapsProgress();
   });
+
+  // Connect to Firestore real-time database
+  useEffect(() => {
+    let isMounted = true;
+    let unsubApprentices: (() => void) | undefined;
+    let unsubInstructors: (() => void) | undefined;
+    let unsubCertificates: (() => void) | undefined;
+
+    const initFirestore = async () => {
+      try {
+        await seedInitialDataIfNeeded(
+          DEFAULT_APPRENTICES_REGISTRY,
+          DEFAULT_INSTRUCTORS_REGISTRY
+        );
+      } catch (err) {
+        console.error('Error seeding Firestore:', err);
+      }
+
+      if (!isMounted) return;
+
+      unsubApprentices = subscribeToApprentices((records) => {
+        if (isMounted) {
+          setApprenticesRegistry(records);
+        }
+      });
+
+      unsubInstructors = subscribeToInstructors((records) => {
+        if (isMounted) {
+          setInstructorsRegistry(records);
+        }
+      });
+
+      unsubCertificates = subscribeToCertificates((records) => {
+        if (isMounted) {
+          setSavedCertificates(records);
+        }
+      });
+    };
+
+    initFirestore();
+
+    return () => {
+      isMounted = false;
+      unsubApprentices?.();
+      unsubInstructors?.();
+      unsubCertificates?.();
+    };
+  }, []);
 
   // Persist apprentice info changes
   useEffect(() => {
@@ -220,6 +284,7 @@ export default function App() {
 
   const handleRegisterInstructorSuccess = (newInstructor: InstructorRecord) => {
     setInstructorsRegistry((prev) => [newInstructor, ...prev.filter((i) => i.id !== newInstructor.id)]);
+    upsertInstructorToDb(newInstructor).catch((err) => console.error(err));
     setIsRegisterInstructorOpen(false);
     setIsInstructorPanelOpen(true);
   };
@@ -228,13 +293,21 @@ export default function App() {
     setInstructorsRegistry((prev) =>
       prev.map((i) => (i.id === updatedInstructor.id ? updatedInstructor : i))
     );
+    upsertInstructorToDb(updatedInstructor).catch((err) => console.error(err));
   };
 
   const handleDeleteInstructor = (instructorId: string) => {
     setInstructorsRegistry((prev) => prev.filter((i) => i.id !== instructorId));
+    deleteInstructorFromDb(instructorId).catch((err) => console.error(err));
   };
 
   const handleRecordResult = (result: EvaluationResult) => {
+    setSavedCertificates(prev => {
+      const filtered = prev.filter(c => c.certificateId !== result.certificateId);
+      return [result, ...filtered];
+    });
+    saveCertificateToDb(result).catch((err) => console.error(err));
+
     setRapsProgress(prev => {
       const current = prev[result.rapId] || {
         rapId: result.rapId,
@@ -247,7 +320,7 @@ export default function App() {
       const newApprovedStyle = current.approvedByStyle || (result.isApproved ? result.evaluatedStyle : undefined);
       const newBestPercentage = Math.max(current.bestPercentage || 0, result.percentage);
 
-      return {
+      const nextProgress: Record<RAPId, RapProgress> = {
         ...prev,
         [result.rapId]: {
           ...current,
@@ -264,6 +337,14 @@ export default function App() {
           }
         }
       };
+
+      if (apprentice.docNumber.trim()) {
+        updateApprenticeProgressInDb(apprentice.docNumber, nextProgress, result).catch((err) =>
+          console.error(err)
+        );
+      }
+
+      return nextProgress;
     });
   };
 
@@ -286,32 +367,67 @@ export default function App() {
       const filtered = prev.filter(c => c.certificateId !== result.certificateId);
       return [result, ...filtered];
     });
+    saveCertificateToDb(result).catch((err) => console.error(err));
+  };
+
+  const syncApprenticeToRegistryAndDb = (apprenticeData: ApprenticeInfo): ApprenticeRecord => {
+    const normalizedDoc = apprenticeData.docNumber.trim();
+    const safeId = makeSafeDocId(normalizedDoc);
+    const existing = apprenticesRegistry.find(
+      (a) => a.id === safeId || a.docNumber.trim() === normalizedDoc
+    );
+
+    const recordToSave: ApprenticeRecord = {
+      ...(existing || {}),
+      ...apprenticeData,
+      id: existing?.id || safeId,
+      fullName: apprenticeData.fullName.trim(),
+      docNumber: normalizedDoc,
+      ficha: apprenticeData.ficha.trim(),
+      center: (apprenticeData.center || existing?.center || 'Centro de Servicios y Gestión Empresarial').trim(),
+      regional: (apprenticeData.regional || existing?.regional || 'Regional Antioquia').trim(),
+      kolbResult:
+        apprenticeData.kolbResult !== undefined && apprenticeData.kolbResult !== null
+          ? apprenticeData.kolbResult
+          : existing?.kolbResult ?? null,
+      registeredAt: existing?.registeredAt || new Date().toLocaleDateString('es-CO'),
+      updatedAt: new Date().toISOString(),
+    };
+
+    setApprenticesRegistry((prev) => {
+      const idx = prev.findIndex(
+        (a) => a.id === recordToSave.id || a.docNumber.trim() === normalizedDoc
+      );
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = recordToSave;
+        return updated;
+      }
+      return [recordToSave, ...prev];
+    });
+
+    upsertApprenticeToDb(recordToSave)
+      .then((persisted) => {
+        setApprentice((curr) =>
+          curr.docNumber.trim() === persisted.docNumber.trim()
+            ? { ...curr, ...persisted }
+            : curr
+        );
+        if (persisted.rapsProgress) {
+          setRapsProgress(persisted.rapsProgress);
+        }
+      })
+      .catch((err) => console.error(err));
+
+    return recordToSave;
   };
 
   const handleLoginSuccess = (apprenticeData: ApprenticeInfo, shouldPromptKolb: boolean) => {
-    setApprentice(apprenticeData);
+    const savedRecord = syncApprenticeToRegistryAndDb(apprenticeData);
+    setApprentice(savedRecord);
+    setRapsProgress(savedRecord.rapsProgress || createEmptyRapsProgress());
     setIsAuthenticated(true);
     setCurrentView('home');
-
-    // Sync into registry for Instructor tracking
-    setApprenticesRegistry(prev => {
-      const existingIdx = prev.findIndex(a => a.docNumber === apprenticeData.docNumber);
-      if (existingIdx >= 0) {
-        const updated = [...prev];
-        updated[existingIdx] = {
-          ...updated[existingIdx],
-          ...apprenticeData,
-        };
-        return updated;
-      } else {
-        const newRecord: ApprenticeRecord = {
-          ...apprenticeData,
-          id: apprenticeData.docNumber,
-          registeredAt: new Date().toLocaleDateString('es-CO'),
-        };
-        return [newRecord, ...prev];
-      }
-    });
 
     if (shouldPromptKolb) {
       setIsKolbModalOpen(true);
@@ -320,6 +436,7 @@ export default function App() {
 
   const handleSwitchApprentice = () => {
     setIsAuthenticated(false);
+    setRapsProgress(createEmptyRapsProgress());
     try {
       localStorage.removeItem('sena_apprentice_logged_in');
     } catch {}
@@ -331,23 +448,41 @@ export default function App() {
       kolbResult: result,
     };
     setApprentice(updated);
+    const normalizedDoc = updated.docNumber.trim();
+    const safeId = makeSafeDocId(normalizedDoc);
+
     setApprenticesRegistry(prev =>
-      prev.map(a => (a.docNumber === updated.docNumber ? { ...a, kolbResult: result } : a))
+      prev.map(a =>
+        a.id === safeId || a.docNumber.trim() === normalizedDoc
+          ? { ...a, kolbResult: result, updatedAt: new Date().toISOString() }
+          : a
+      )
     );
+
+    updateApprenticeKolbInDb(normalizedDoc, result).catch(() => {
+      syncApprenticeToRegistryAndDb(updated);
+    });
     setIsKolbModalOpen(false);
   };
 
   const handleUpdateApprenticeFromInstructor = (updatedRecord: ApprenticeRecord) => {
     setApprenticesRegistry(prev =>
-      prev.map(a => (a.docNumber === updatedRecord.docNumber || a.id === updatedRecord.id ? updatedRecord : a))
+      prev.map(a =>
+        a.docNumber === updatedRecord.docNumber || a.id === updatedRecord.id ? updatedRecord : a
+      )
     );
-    if (apprentice.docNumber === updatedRecord.docNumber) {
+    upsertApprenticeToDb(updatedRecord).catch((err) => console.error(err));
+    if (apprentice.docNumber.trim() === updatedRecord.docNumber.trim()) {
       setApprentice(updatedRecord);
     }
   };
 
   const handleDeleteApprenticeFromInstructor = (docNumberToDelete: string) => {
+    const target = apprenticesRegistry.find(
+      (a) => a.docNumber === docNumberToDelete || a.id === docNumberToDelete
+    );
     setApprenticesRegistry(prev => prev.filter(a => a.docNumber !== docNumberToDelete));
+    deleteApprenticeFromDb(target?.id || docNumberToDelete).catch((err) => console.error(err));
     if (apprentice.docNumber === docNumberToDelete) {
       setIsAuthenticated(false);
     }
@@ -359,6 +494,7 @@ export default function App() {
       <>
         <ApprenticeLoginLanding
           initialData={apprentice}
+          onRegisterApprentice={syncApprenticeToRegistryAndDb}
           onLoginSuccess={handleLoginSuccess}
           onOpenInstructorPanel={() => setIsInstructorPanelOpen(true)}
           onOpenManual={() => {
@@ -541,7 +677,10 @@ export default function App() {
       {isApprenticeModalOpen && (
         <ApprenticeModal
           currentInfo={apprentice}
-          onSave={(newInfo) => setApprentice(newInfo)}
+          onSave={(newInfo) => {
+            const savedRecord = syncApprenticeToRegistryAndDb(newInfo);
+            setApprentice(savedRecord);
+          }}
           onClose={() => setIsApprenticeModalOpen(false)}
         />
       )}

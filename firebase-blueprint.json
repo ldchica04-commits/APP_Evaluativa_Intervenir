@@ -1,0 +1,230 @@
+{
+  "entities": {
+    "Apprentice": {
+      "title": "Apprentice",
+      "description": "Registered SENA apprentice profile, Kolb learning style, and RAP progress.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Document identifier matching the apprentice document number.",
+          "minLength": 3,
+          "maxLength": 40,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Full name of the apprentice.",
+          "minLength": 2,
+          "maxLength": 150
+        },
+        "docType": {
+          "type": "string",
+          "description": "Identification document type.",
+          "enum": ["C.C.", "T.I.", "C.E.", "P.P.T."]
+        },
+        "docNumber": {
+          "type": "string",
+          "description": "Identification document number.",
+          "minLength": 3,
+          "maxLength": 40,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "ficha": {
+          "type": "string",
+          "description": "SENA cohort ficha number.",
+          "minLength": 2,
+          "maxLength": 30
+        },
+        "center": {
+          "type": "string",
+          "description": "SENA training center name.",
+          "minLength": 2,
+          "maxLength": 160
+        },
+        "regional": {
+          "type": "string",
+          "description": "SENA regional name.",
+          "minLength": 2,
+          "maxLength": 100
+        },
+        "registeredAt": {
+          "type": "string",
+          "description": "Registration date string.",
+          "maxLength": 40
+        },
+        "kolbResult": {
+          "type": "object",
+          "description": "Optional Kolb learning style result object."
+        },
+        "rapsProgress": {
+          "type": "object",
+          "description": "Progress tracking map keyed by RAP ID."
+        },
+        "totalAttempts": {
+          "type": "number",
+          "description": "Total evaluation attempts."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp."
+        }
+      },
+      "required": ["id", "fullName", "docType", "docNumber", "ficha", "center", "regional", "registeredAt"]
+    },
+    "Instructor": {
+      "title": "Instructor",
+      "description": "SENA instructor account with assigned fichas.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique instructor identifier.",
+          "minLength": 3,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Full name of the instructor.",
+          "minLength": 2,
+          "maxLength": 150
+        },
+        "docNumber": {
+          "type": "string",
+          "description": "Instructor document number.",
+          "minLength": 3,
+          "maxLength": 40
+        },
+        "username": {
+          "type": "string",
+          "description": "Institutional email or username.",
+          "minLength": 3,
+          "maxLength": 120
+        },
+        "password": {
+          "type": "string",
+          "description": "Instructor panel access password.",
+          "minLength": 4,
+          "maxLength": 120
+        },
+        "fichas": {
+          "type": "array",
+          "description": "List of assigned ficha codes."
+        },
+        "registeredAt": {
+          "type": "string",
+          "description": "Registration date string.",
+          "maxLength": 40
+        }
+      },
+      "required": ["id", "fullName", "docNumber", "username", "password", "fichas", "registeredAt"]
+    },
+    "Certificate": {
+      "title": "Certificate",
+      "description": "Evaluation result and official certificate record.",
+      "type": "object",
+      "properties": {
+        "certificateId": {
+          "type": "string",
+          "description": "Unique certificate identifier.",
+          "minLength": 3,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "rapId": {
+          "type": "string",
+          "enum": ["rap1", "rap2", "rap3", "rap4"],
+          "description": "Evaluated RAP identifier."
+        },
+        "rapTitle": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "rapCode": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "evaluatedStyle": {
+          "type": "string",
+          "enum": ["Acomodador", "Divergente", "Convergente", "Asimilador"]
+        },
+        "evaluatedStyleTag": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "evaluationTechnique": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "evaluationInstrument": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "evidenceType": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "apprentice": {
+          "type": "object",
+          "description": "Snapshot of apprentice info at evaluation time."
+        },
+        "completedAt": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "score": {
+          "type": "number"
+        },
+        "maxScore": {
+          "type": "number"
+        },
+        "percentage": {
+          "type": "number"
+        },
+        "concept": {
+          "type": "string",
+          "enum": ["APROBADO", "NO APROBADO"]
+        },
+        "isApproved": {
+          "type": "boolean"
+        },
+        "questionResults": {
+          "type": "array",
+          "description": "Detailed answers and feedback."
+        }
+      },
+      "required": [
+        "certificateId",
+        "rapId",
+        "rapTitle",
+        "rapCode",
+        "evaluatedStyle",
+        "evaluatedStyleTag",
+        "apprentice",
+        "completedAt",
+        "score",
+        "maxScore",
+        "percentage",
+        "concept",
+        "isApproved",
+        "questionResults"
+      ]
+    }
+  },
+  "firestore": {
+    "/apprentices/{docNumber}": {
+      "schema": { "$ref": "#/entities/Apprentice" },
+      "description": "Registered SENA apprentices keyed by document number."
+    },
+    "/instructors/{instructorId}": {
+      "schema": { "$ref": "#/entities/Instructor" },
+      "description": "Registered SENA instructors and their assigned fichas."
+    },
+    "/certificates/{certificateId}": {
+      "schema": { "$ref": "#/entities/Certificate" },
+      "description": "Issued evaluation certificates and attempt records."
+    }
+  }
+}

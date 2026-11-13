@@ -7,6 +7,7 @@ import { User, IdCard, Hash, ArrowRight, ShieldCheck, Sparkles, BookOpen, Brain,
 interface ApprenticeLoginLandingProps {
   initialData: ApprenticeInfo;
   onLoginSuccess: (apprentice: ApprenticeInfo, shouldPromptKolb: boolean) => void;
+  onRegisterApprentice?: (apprentice: ApprenticeInfo) => void;
   onOpenInstructorPanel: () => void;
   onOpenManual?: () => void;
 }
@@ -14,6 +15,7 @@ interface ApprenticeLoginLandingProps {
 export const ApprenticeLoginLanding: React.FC<ApprenticeLoginLandingProps> = ({
   initialData,
   onLoginSuccess,
+  onRegisterApprentice,
   onOpenInstructorPanel,
   onOpenManual,
 }) => {
@@ -29,21 +31,35 @@ export const ApprenticeLoginLanding: React.FC<ApprenticeLoginLandingProps> = ({
   });
   const [showGreetingModal, setShowGreetingModal] = useState(false);
 
+  const getNormalizedFormData = (): ApprenticeInfo => ({
+    ...formData,
+    fullName: formData.fullName.trim(),
+    docNumber: formData.docNumber.trim(),
+    ficha: formData.ficha.trim(),
+    center: (formData.center || 'Centro de Servicios y Gestión Empresarial').trim(),
+    regional: (formData.regional || 'Regional Antioquia').trim(),
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.fullName.trim() || !formData.docNumber.trim() || !formData.ficha.trim()) {
+    const normalized = getNormalizedFormData();
+    if (!normalized.fullName || !normalized.docNumber || !normalized.ficha) {
       return;
+    }
+    setFormData(normalized);
+    if (onRegisterApprentice) {
+      onRegisterApprentice(normalized);
     }
     // Show the greeting and prompt to answer the Kolb test
     setShowGreetingModal(true);
   };
 
   const handleStartKolb = () => {
-    onLoginSuccess(formData, true);
+    onLoginSuccess(getNormalizedFormData(), true);
   };
 
   const handleSkipKolb = () => {
-    onLoginSuccess(formData, false);
+    onLoginSuccess(getNormalizedFormData(), false);
   };
 
   return (
@@ -82,7 +98,6 @@ export const ApprenticeLoginLanding: React.FC<ApprenticeLoginLandingProps> = ({
             <button
               onClick={onOpenInstructorPanel}
               className="px-3.5 py-2 text-xs font-bold text-slate-700 hover:text-[#007832] bg-slate-100 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-2xs hover:scale-[1.02]"
-              title="Espacio de control e inspección del instructor (Usuario ADMON / admonsena123)"
             >
               <Settings className="w-4 h-4 text-[#39A900]" />
               <span>Configuración</span>

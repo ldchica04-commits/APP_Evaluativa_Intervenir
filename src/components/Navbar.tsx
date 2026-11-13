@@ -131,7 +131,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={onOpenInstructorPanel}
               className="p-1.5 text-slate-600 hover:text-[#007832] bg-slate-100 hover:bg-emerald-50 rounded-lg transition-colors border border-slate-200 shrink-0 cursor-pointer"
-              title="Configuración / Espacio de Control del Instructor (Usuario ADMON / admonsena123)"
+              aria-label="Configuración"
             >
               <Settings className="w-4 h-4 text-[#39A900]" />
             </button>

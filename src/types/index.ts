@@ -27,6 +27,8 @@ export interface ApprenticeRecord extends ApprenticeInfo {
   attemptsCountByRap?: Record<RAPId, number>;
   totalAttempts?: number;
   lastResult?: EvaluationResult | null;
+  rapsProgress?: Record<RAPId, RapProgress>;
+  updatedAt?: string;
 }
 
 export interface InstructorRecord {
