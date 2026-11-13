@@ -420,7 +420,7 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
                       setPasswordInput(e.target.value);
                       setAuthError('');
                     }}
-                    placeholder="Clave de acceso (ej. admonsena123)"
+                    placeholder="Clave de acceso"
                     className="w-full pl-9 pr-4 py-2.5 font-mono text-xs border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#39A900] bg-slate-50 focus:bg-white text-slate-900"
                   />
                 </div>
