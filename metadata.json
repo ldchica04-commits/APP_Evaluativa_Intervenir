@@ -1,0 +1,6 @@
+{
+  "name": "SENA - Gestión Empresarial: Mejoramiento Organizacional",
+  "description": "Aplicación interactiva de aprendizaje y evaluación para la competencia de Mejoramiento Organizacional del Programa Tecnólogo en Gestión Empresarial SENA, con los 4 RAPs, simuladores y generación de constancias oficiales de resultado.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
