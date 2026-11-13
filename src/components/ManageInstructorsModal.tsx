@@ -66,12 +66,13 @@ export const ManageInstructorsModal: React.FC<ManageInstructorsModalProps> = ({
 
   // Filter instructors by search term
   const filteredInstructors = instructors.filter((inst) => {
-    const term = searchTerm.toLowerCase();
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return true;
     return (
       inst.fullName.toLowerCase().includes(term) ||
-      inst.docNumber.includes(term) ||
+      inst.docNumber.toLowerCase().includes(term) ||
       inst.username.toLowerCase().includes(term) ||
-      inst.fichas.some((f) => f.includes(term))
+      inst.fichas.some((f) => f.toLowerCase().includes(term))
     );
   });
 
@@ -79,14 +80,33 @@ export const ManageInstructorsModal: React.FC<ManageInstructorsModalProps> = ({
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingInstructor) return;
-    if (!editingInstructor.fullName.trim() || !editingInstructor.username.trim() || !editingInstructor.docNumber.trim()) {
+
+    const trimmedName = editingInstructor.fullName.trim();
+    const trimmedDoc = editingInstructor.docNumber.trim();
+    const normalizedUser = editingInstructor.username.trim().toLowerCase();
+    const pendingCustomFicha = customFicha.trim();
+    const finalFichas = Array.from(
+      new Set([
+        ...editingInstructor.fichas.map((f) => f.trim()).filter(Boolean),
+        ...(pendingCustomFicha ? [pendingCustomFicha] : []),
+      ])
+    );
+
+    if (!trimmedName || !normalizedUser || !trimmedDoc) {
       return;
     }
-    if (editingInstructor.fichas.length === 0) {
+    if (finalFichas.length === 0) {
       return;
     }
 
-    onUpdateInstructor(editingInstructor);
+    onUpdateInstructor({
+      ...editingInstructor,
+      fullName: trimmedName,
+      docNumber: trimmedDoc,
+      username: normalizedUser,
+      fichas: finalFichas,
+    });
+    setCustomFicha('');
     setEditingInstructor(null);
   };
 
@@ -327,7 +347,10 @@ export const ManageInstructorsModal: React.FC<ManageInstructorsModalProps> = ({
 
                               {/* Botón Corregir Información */}
                               <button
-                                onClick={() => setEditingInstructor({ ...inst })}
+                                onClick={() => {
+                                  setCustomFicha('');
+                                  setEditingInstructor({ ...inst, fichas: [...inst.fichas] });
+                                }}
                                 className="p-1.5 text-slate-600 hover:text-[#007832] bg-slate-100 hover:bg-emerald-50 border border-slate-200 rounded-lg transition-colors cursor-pointer"
                                 title="Editar datos e información del instructor"
                               >

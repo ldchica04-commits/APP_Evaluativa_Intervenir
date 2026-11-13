@@ -1,19 +1,22 @@
-import React, { useState } from 'react';
-import { ApprenticeInfo } from '../types';
+import React, { useEffect, useState } from 'react';
+import { ApprenticeInfo, ApprenticeRecord } from '../types';
 import { SenaLogo } from './SenaLogo';
 import { COMPETENCY_INFO } from '../data/senaData';
-import { User, IdCard, Hash, ArrowRight, ShieldCheck, Sparkles, BookOpen, Brain, CheckCircle2, Settings, BarChart3, Video } from 'lucide-react';
+import { getApprenticeFromDb, makeSafeDocId } from '../services/firestoreService';
+import { User, IdCard, Hash, ArrowRight, ShieldCheck, Sparkles, BookOpen, Brain, CheckCircle2, Settings, BarChart3, Video, AlertCircle } from 'lucide-react';
 
 interface ApprenticeLoginLandingProps {
   initialData: ApprenticeInfo;
+  existingApprentices?: ApprenticeRecord[];
   onLoginSuccess: (apprentice: ApprenticeInfo, shouldPromptKolb: boolean) => void;
-  onRegisterApprentice?: (apprentice: ApprenticeInfo) => void;
+  onRegisterApprentice?: (apprentice: ApprenticeInfo) => ApprenticeRecord | void;
   onOpenInstructorPanel: () => void;
   onOpenManual?: () => void;
 }
 
 export const ApprenticeLoginLanding: React.FC<ApprenticeLoginLandingProps> = ({
   initialData,
+  existingApprentices = [],
   onLoginSuccess,
   onRegisterApprentice,
   onOpenInstructorPanel,
@@ -29,37 +32,174 @@ export const ApprenticeLoginLanding: React.FC<ApprenticeLoginLandingProps> = ({
     regional: initialData.regional || 'Regional Antioquia',
     kolbResult: null,
   });
+  const [touchedFields, setTouchedFields] = useState({
+    fullName: false,
+    docType: false,
+    ficha: false,
+  });
+  const [matchedApprentice, setMatchedApprentice] = useState<ApprenticeRecord | null>(null);
+  const [resolvedApprentice, setResolvedApprentice] = useState<ApprenticeInfo | null>(null);
+  const [formError, setFormError] = useState('');
+  const [isCheckingDoc, setIsCheckingDoc] = useState(false);
   const [showGreetingModal, setShowGreetingModal] = useState(false);
 
-  const getNormalizedFormData = (): ApprenticeInfo => ({
-    ...formData,
-    fullName: formData.fullName.trim(),
-    docNumber: formData.docNumber.trim(),
-    ficha: formData.ficha.trim(),
-    center: (formData.center || 'Centro de Servicios y Gestión Empresarial').trim(),
-    regional: (formData.regional || 'Regional Antioquia').trim(),
-  });
+  const findLocalMatch = (rawDoc: string): ApprenticeRecord | null => {
+    const trimmed = rawDoc.trim();
+    if (!trimmed) return null;
+    const safeId = makeSafeDocId(trimmed);
+    return (
+      existingApprentices.find(
+        (a) => a.docNumber.trim() === trimmed || a.id === safeId
+      ) || null
+    );
+  };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const normalized = getNormalizedFormData();
-    if (!normalized.fullName || !normalized.docNumber || !normalized.ficha) {
+  const applyMatchedRecordToForm = (found: ApprenticeRecord) => {
+    setMatchedApprentice(found);
+    setFormData((prev) => ({
+      ...prev,
+      fullName: !touchedFields.fullName || !prev.fullName.trim() ? found.fullName : prev.fullName,
+      docType: !touchedFields.docType ? found.docType : prev.docType,
+      ficha: !touchedFields.ficha || !prev.ficha.trim() ? found.ficha : prev.ficha,
+      center: found.center || prev.center,
+      regional: found.regional || prev.regional,
+      kolbResult: found.kolbResult ?? null,
+    }));
+  };
+
+  useEffect(() => {
+    const trimmedDoc = formData.docNumber.trim();
+    if (!trimmedDoc) {
+      if (matchedApprentice) {
+        setMatchedApprentice(null);
+        setFormData((prev) => ({
+          ...prev,
+          fullName: touchedFields.fullName ? prev.fullName : '',
+          docType: touchedFields.docType ? prev.docType : 'C.C.',
+          ficha: touchedFields.ficha ? prev.ficha : '',
+          center: initialData.center || 'Centro de Servicios y Gestión Empresarial',
+          regional: initialData.regional || 'Regional Antioquia',
+          kolbResult: null,
+        }));
+      }
       return;
     }
-    setFormData(normalized);
-    if (onRegisterApprentice) {
-      onRegisterApprentice(normalized);
+
+    const localFound = findLocalMatch(trimmedDoc);
+    if (localFound) {
+      if (matchedApprentice?.id !== localFound.id || matchedApprentice?.updatedAt !== localFound.updatedAt) {
+        applyMatchedRecordToForm(localFound);
+      }
+      return;
     }
-    // Show the greeting and prompt to answer the Kolb test
+
+    if (matchedApprentice && matchedApprentice.docNumber.trim() !== trimmedDoc) {
+      setMatchedApprentice(null);
+      setFormData((prev) => ({
+        ...prev,
+        fullName: touchedFields.fullName ? prev.fullName : '',
+        docType: touchedFields.docType ? prev.docType : 'C.C.',
+        ficha: touchedFields.ficha ? prev.ficha : '',
+        center: initialData.center || 'Centro de Servicios y Gestión Empresarial',
+        regional: initialData.regional || 'Regional Antioquia',
+        kolbResult: null,
+      }));
+    }
+
+    if (trimmedDoc.length < 4) return;
+
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      try {
+        const dbFound = await getApprenticeFromDb(trimmedDoc);
+        if (!cancelled && dbFound && dbFound.docNumber.trim() === trimmedDoc) {
+          applyMatchedRecordToForm(dbFound);
+        }
+      } catch {
+        // Non-blocking lookup fallback
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [formData.docNumber, existingApprentices]);
+
+  const buildMergedApprenticeData = (existing: ApprenticeRecord | null): ApprenticeInfo => {
+    const trimmedDoc = formData.docNumber.trim();
+    const typedName = formData.fullName.trim();
+    const typedFicha = formData.ficha.trim();
+
+    if (existing) {
+      return {
+        ...existing,
+        fullName: (touchedFields.fullName ? typedName : '') || typedName || existing.fullName,
+        docType: touchedFields.docType ? formData.docType : existing.docType,
+        docNumber: trimmedDoc || existing.docNumber,
+        ficha: (touchedFields.ficha ? typedFicha : '') || typedFicha || existing.ficha,
+        center: (existing.center || formData.center || 'Centro de Servicios y Gestión Empresarial').trim(),
+        regional: (existing.regional || formData.regional || 'Regional Antioquia').trim(),
+        kolbResult: existing.kolbResult ?? null,
+      };
+    }
+
+    return {
+      ...formData,
+      fullName: typedName,
+      docNumber: trimmedDoc,
+      ficha: typedFicha,
+      center: (formData.center || 'Centro de Servicios y Gestión Empresarial').trim(),
+      regional: (formData.regional || 'Regional Antioquia').trim(),
+      kolbResult: null,
+    };
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isCheckingDoc) return;
+    setFormError('');
+
+    const trimmedDoc = formData.docNumber.trim();
+    if (!trimmedDoc) {
+      setFormError('Por favor ingrese su número de documento.');
+      return;
+    }
+
+    let existing = matchedApprentice || findLocalMatch(trimmedDoc);
+    if (!existing) {
+      setIsCheckingDoc(true);
+      try {
+        existing = await getApprenticeFromDb(trimmedDoc);
+      } catch {
+        // Proceed with local data if lookup fails
+      } finally {
+        setIsCheckingDoc(false);
+      }
+    }
+
+    const mergedData = buildMergedApprenticeData(existing);
+
+    if (!mergedData.fullName || !mergedData.docNumber || !mergedData.ficha) {
+      setFormError('Por favor diligencie sus nombres completos, número de documento y ficha.');
+      return;
+    }
+
+    setMatchedApprentice(existing);
+    setFormData(mergedData);
+    const savedOrMerged = onRegisterApprentice ? onRegisterApprentice(mergedData) : undefined;
+    setResolvedApprentice(savedOrMerged || mergedData);
     setShowGreetingModal(true);
   };
 
   const handleStartKolb = () => {
-    onLoginSuccess(getNormalizedFormData(), true);
+    const payload = resolvedApprentice || buildMergedApprenticeData(matchedApprentice);
+    onLoginSuccess(payload, true);
   };
 
   const handleSkipKolb = () => {
-    onLoginSuccess(getNormalizedFormData(), false);
+    const payload = resolvedApprentice || buildMergedApprenticeData(matchedApprentice);
+    onLoginSuccess(payload, false);
   };
 
   return (
@@ -178,6 +318,27 @@ export const ApprenticeLoginLanding: React.FC<ApprenticeLoginLandingProps> = ({
               </div>
 
               <form onSubmit={handleSubmit} className="space-y-5">
+                {matchedApprentice && (
+                  <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-slate-700 flex items-start gap-2.5">
+                    <CheckCircle2 className="w-4 h-4 text-[#39A900] shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold text-[#007832] block">
+                        Cédula / documento ya registrado
+                      </span>
+                      <span className="text-[11.5px] leading-snug block mt-0.5">
+                        Se conservan sus datos del primer registro{matchedApprentice.kolbResult?.style ? ` y su estilo Kolb (${matchedApprentice.kolbResult.style})` : ''}. Ajuste únicamente los campos que necesite actualizar.
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {formError && (
+                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700 font-bold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>{formError}</span>
+                  </div>
+                )}
+
                 {/* Nombres y Apellidos */}
                 <div>
                   <label className="block text-sm font-bold uppercase tracking-wider text-slate-800 mb-1.5">
@@ -186,11 +347,14 @@ export const ApprenticeLoginLanding: React.FC<ApprenticeLoginLandingProps> = ({
                   <div className="relative">
                     <input
                       type="text"
-                      required
                       value={formData.fullName}
-                      onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                      onChange={(e) => {
+                        setFormError('');
+                        setTouchedFields((prev) => ({ ...prev, fullName: true }));
+                        setFormData({ ...formData, fullName: e.target.value });
+                      }}
                       placeholder="Nombres y Apellidos"
-                      className="w-full px-4 py-3 text-base border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#39A900] focus:border-transparent bg-slate-50/50 hover:bg-white focus:bg-white transition-all font-medium text-slate-900 placeholder:text-slate-400 focus:placeholder-transparent"
+                      className="w-full px-4 py-3 text-base border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#39A900] focus:border-transparent bg-slate-50/50 hover:bg-white focus:bg-white transition-all font-medium text-slate-900 placeholder:text-slate-400 focus:placeholder:transparent"
                     />
                   </div>
                 </div>
@@ -204,7 +368,10 @@ export const ApprenticeLoginLanding: React.FC<ApprenticeLoginLandingProps> = ({
                     <select
                       required
                       value={formData.docType}
-                      onChange={(e) => setFormData({ ...formData, docType: e.target.value as any })}
+                      onChange={(e) => {
+                        setTouchedFields((prev) => ({ ...prev, docType: true }));
+                        setFormData({ ...formData, docType: e.target.value as any });
+                      }}
                       className="w-full px-3.5 py-3 text-base border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#39A900] focus:border-transparent bg-white font-medium text-slate-800"
                     >
                       <option value="C.C.">C.C. (Cédula de Ciudadanía)</option>
@@ -222,9 +389,12 @@ export const ApprenticeLoginLanding: React.FC<ApprenticeLoginLandingProps> = ({
                       type="text"
                       required
                       value={formData.docNumber}
-                      onChange={(e) => setFormData({ ...formData, docNumber: e.target.value })}
+                      onChange={(e) => {
+                        setFormError('');
+                        setFormData({ ...formData, docNumber: e.target.value });
+                      }}
                       placeholder="Número de Documento"
-                      className="w-full px-4 py-3 text-base border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#39A900] focus:border-transparent bg-slate-50/50 hover:bg-white focus:bg-white transition-all font-medium text-slate-900 placeholder:text-slate-400 focus:placeholder-transparent"
+                      className="w-full px-4 py-3 text-base border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#39A900] focus:border-transparent bg-slate-50/50 hover:bg-white focus:bg-white transition-all font-medium text-slate-900 placeholder:text-slate-400 focus:placeholder:transparent"
                     />
                   </div>
                 </div>
@@ -237,11 +407,14 @@ export const ApprenticeLoginLanding: React.FC<ApprenticeLoginLandingProps> = ({
                   <div className="relative">
                     <input
                       type="text"
-                      required
                       value={formData.ficha}
-                      onChange={(e) => setFormData({ ...formData, ficha: e.target.value })}
+                      onChange={(e) => {
+                        setFormError('');
+                        setTouchedFields((prev) => ({ ...prev, ficha: true }));
+                        setFormData({ ...formData, ficha: e.target.value });
+                      }}
                       placeholder="Número de Ficha"
-                      className="w-full px-4 py-3 text-base border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#39A900] focus:border-transparent bg-slate-50/50 hover:bg-white focus:bg-white transition-all font-medium text-slate-900 placeholder:text-slate-400 focus:placeholder-transparent"
+                      className="w-full px-4 py-3 text-base border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#39A900] focus:border-transparent bg-slate-50/50 hover:bg-white focus:bg-white transition-all font-medium text-slate-900 placeholder:text-slate-400 focus:placeholder:transparent"
                     />
                   </div>
                 </div>
@@ -250,9 +423,16 @@ export const ApprenticeLoginLanding: React.FC<ApprenticeLoginLandingProps> = ({
                 <div className="pt-3.5">
                   <button
                     type="submit"
-                    className="w-full py-4 px-5 text-base font-bold text-white bg-[#39A900] hover:bg-[#007832] rounded-xl shadow-md hover:shadow-lg flex items-center justify-center gap-2.5 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                    disabled={isCheckingDoc}
+                    className="w-full py-4 px-5 text-base font-bold text-white bg-[#39A900] hover:bg-[#007832] disabled:opacity-60 disabled:cursor-not-allowed rounded-xl shadow-md hover:shadow-lg flex items-center justify-center gap-2.5 transition-all hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
                   >
-                    <span>Ingresar y Definir Estilo de Aprendizaje</span>
+                    <span>
+                      {isCheckingDoc
+                        ? 'Verificando registro...'
+                        : matchedApprentice
+                        ? 'Ingresar con Datos Conservados'
+                        : 'Ingresar y Definir Estilo de Aprendizaje'}
+                    </span>
                     <ArrowRight className="w-5 h-5" />
                   </button>
                 </div>
@@ -288,7 +468,7 @@ export const ApprenticeLoginLanding: React.FC<ApprenticeLoginLandingProps> = ({
                 Servicio Nacional de Aprendizaje · SENA
               </span>
               <h3 className="text-2xl sm:text-3xl font-black font-display">
-                ¡Bienvenido(a), {formData.fullName}!
+                {matchedApprentice ? `¡Bienvenido(a) de nuevo, ${formData.fullName}!` : `¡Bienvenido(a), ${formData.fullName}!`}
               </h3>
               <p className="text-sm text-slate-200 mt-1 font-medium">
                 Aprendiz registrado en la Ficha <strong className="text-emerald-300 font-mono">{formData.ficha}</strong>
@@ -297,36 +477,70 @@ export const ApprenticeLoginLanding: React.FC<ApprenticeLoginLandingProps> = ({
 
             {/* Modal Body: Kolb Test Prompt */}
             <div className="p-7 sm:p-9 space-y-6">
-              <div className="p-5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-slate-700 leading-relaxed">
-                <div className="flex items-center gap-2.5 font-bold text-[#007832] uppercase tracking-wider mb-1.5">
-                  <Brain className="w-5 h-5 text-[#39A900]" />
-                  <span>Diagnóstico Inicial de Estilo de Aprendizaje</span>
-                </div>
-                <p>
-                  Para garantizar una experiencia formativa exitosa en la competencia de <strong>Mejoramiento Organizacional</strong>, te solicitamos responder el <strong>Test de David Kolb</strong> (5 breves preguntas).
-                </p>
-                <p className="mt-2 font-medium text-slate-800">
-                  Esto permitirá definir si tu perfil es <strong>Acomodador, Divergente, Convergente o Asimilador</strong> y orientarte en el estudio de los 4 RAPs.
-                </p>
-              </div>
+              {resolvedApprentice?.kolbResult?.style ? (
+                <>
+                  <div className="p-5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-slate-700 leading-relaxed">
+                    <div className="flex items-center gap-2.5 font-bold text-[#007832] uppercase tracking-wider mb-1.5">
+                      <CheckCircle2 className="w-5 h-5 text-[#39A900]" />
+                      <span>Registro y Avances Conservados</span>
+                    </div>
+                    <p>
+                      Hemos conservado tus datos del primer registro junto con tu estilo de aprendizaje <strong className="text-[#00324D]">{resolvedApprentice.kolbResult.style}</strong> y el historial de evaluaciones realizadas.
+                    </p>
+                  </div>
 
-              <div className="space-y-3">
-                <button
-                  onClick={handleStartKolb}
-                  className="w-full py-4 px-5 text-sm sm:text-base font-bold text-white bg-[#39A900] hover:bg-[#007832] rounded-xl shadow-md flex items-center justify-center gap-2.5 transition-all hover:scale-[1.01] cursor-pointer"
-                >
-                  <Brain className="w-5 h-5" />
-                  <span>Responder Test de Kolb Ahora (Recomendado)</span>
-                  <ArrowRight className="w-5 h-5" />
-                </button>
+                  <div className="space-y-3">
+                    <button
+                      onClick={handleSkipKolb}
+                      className="w-full py-4 px-5 text-sm sm:text-base font-bold text-white bg-[#39A900] hover:bg-[#007832] rounded-xl shadow-md flex items-center justify-center gap-2.5 transition-all hover:scale-[1.01] cursor-pointer"
+                    >
+                      <span>Continuar a la Plataforma</span>
+                      <ArrowRight className="w-5 h-5" />
+                    </button>
 
-                <button
-                  onClick={handleSkipKolb}
-                  className="w-full py-3 px-5 text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer text-center"
-                >
-                  Ir directo a los contenidos (Responder el test después)
-                </button>
-              </div>
+                    <button
+                      onClick={handleStartKolb}
+                      className="w-full py-3 px-5 text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer text-center flex items-center justify-center gap-2"
+                    >
+                      <Brain className="w-4 h-4 text-[#39A900]" />
+                      <span>Actualizar Test de Kolb (Opcional)</span>
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="p-5 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-slate-700 leading-relaxed">
+                    <div className="flex items-center gap-2.5 font-bold text-[#007832] uppercase tracking-wider mb-1.5">
+                      <Brain className="w-5 h-5 text-[#39A900]" />
+                      <span>Diagnóstico Inicial de Estilo de Aprendizaje</span>
+                    </div>
+                    <p>
+                      Para garantizar una experiencia formativa exitosa en la competencia de <strong>Mejoramiento Organizacional</strong>, te solicitamos responder el <strong>Test de David Kolb</strong> (5 breves preguntas).
+                    </p>
+                    <p className="mt-2 font-medium text-slate-800">
+                      Esto permitirá definir si tu perfil es <strong>Acomodador, Divergente, Convergente o Asimilador</strong> y orientarte en el estudio de los 4 RAPs.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <button
+                      onClick={handleStartKolb}
+                      className="w-full py-4 px-5 text-sm sm:text-base font-bold text-white bg-[#39A900] hover:bg-[#007832] rounded-xl shadow-md flex items-center justify-center gap-2.5 transition-all hover:scale-[1.01] cursor-pointer"
+                    >
+                      <Brain className="w-5 h-5" />
+                      <span>Responder Test de Kolb Ahora (Recomendado)</span>
+                      <ArrowRight className="w-5 h-5" />
+                    </button>
+
+                    <button
+                      onClick={handleSkipKolb}
+                      className="w-full py-3 px-5 text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer text-center"
+                    >
+                      Ir directo a los contenidos (Responder el test después)
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

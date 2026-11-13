@@ -128,12 +128,24 @@ export function subscribeToInstructors(
     collection(db, INSTRUCTORS_COLLECTION),
     (snapshot) => {
       const records = snapshot.docs.map((d) => d.data() as InstructorRecord);
+      records.sort((a, b) => (b.registeredAt || '').localeCompare(a.registeredAt || ''));
       onData(records);
     },
     (error) => {
       handleFirestoreError(error, OperationType.LIST, INSTRUCTORS_COLLECTION);
     }
   );
+}
+
+export async function fetchInstructorsFromDb(): Promise<InstructorRecord[]> {
+  try {
+    const snap = await getDocs(collection(db, INSTRUCTORS_COLLECTION));
+    const records = snap.docs.map((d) => d.data() as InstructorRecord);
+    records.sort((a, b) => (b.registeredAt || '').localeCompare(a.registeredAt || ''));
+    return records;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.LIST, INSTRUCTORS_COLLECTION);
+  }
 }
 
 export function subscribeToCertificates(
@@ -166,7 +178,8 @@ export async function getApprenticeFromDb(docNumberOrId: string): Promise<Appren
 }
 
 export async function upsertApprenticeToDb(
-  record: ApprenticeRecord
+  record: ApprenticeRecord,
+  options?: { preserveExistingLocation?: boolean }
 ): Promise<ApprenticeRecord> {
   const safeId = makeSafeDocId(record.id || record.docNumber);
   const path = `${APPRENTICES_COLLECTION}/${safeId}`;
@@ -178,20 +191,32 @@ export async function upsertApprenticeToDb(
 
     if (existingSnap.exists()) {
       const existingData = existingSnap.data() as ApprenticeRecord;
+      const preserveLocation = options?.preserveExistingLocation === true;
+      const nextCenter = preserveLocation && existingData.center
+        ? existingData.center
+        : (record.center.trim() || existingData.center || 'Centro de Servicios y Gestión Empresarial');
+      const nextRegional = preserveLocation && existingData.regional
+        ? existingData.regional
+        : (record.regional.trim() || existingData.regional || 'Regional Antioquia');
+
       const merged: ApprenticeRecord = stripUndefined({
         ...existingData,
         ...record,
         id: existingData.id,
         registeredAt: existingData.registeredAt,
-        fullName: record.fullName.trim().slice(0, 150),
-        docNumber: record.docNumber.trim().slice(0, 40),
-        ficha: record.ficha.trim().slice(0, 30),
-        center: (record.center || existingData.center || 'Centro de Servicios y Gestión Empresarial').trim().slice(0, 160),
-        regional: (record.regional || existingData.regional || 'Regional Antioquia').trim().slice(0, 100),
+        fullName: (record.fullName.trim() || existingData.fullName).slice(0, 150),
+        docType: record.docType || existingData.docType,
+        docNumber: (record.docNumber.trim() || existingData.docNumber).slice(0, 40),
+        ficha: (record.ficha.trim() || existingData.ficha).slice(0, 30),
+        center: nextCenter.trim().slice(0, 160),
+        regional: nextRegional.trim().slice(0, 100),
         kolbResult: record.kolbResult !== undefined && record.kolbResult !== null
           ? record.kolbResult
           : existingData.kolbResult ?? null,
         rapsProgress: record.rapsProgress || existingData.rapsProgress,
+        attemptsCountByRap: record.attemptsCountByRap || existingData.attemptsCountByRap,
+        totalAttempts: record.totalAttempts !== undefined ? record.totalAttempts : existingData.totalAttempts,
+        lastResult: record.lastResult !== undefined ? record.lastResult : existingData.lastResult,
         updatedAt: nowIso,
       });
 
@@ -281,33 +306,47 @@ export async function deleteApprenticeFromDb(docNumberOrId: string): Promise<voi
   }
 }
 
-export async function upsertInstructorToDb(instructor: InstructorRecord): Promise<void> {
-  const safeId = makeSafeDocId(instructor.id || `INST-${instructor.docNumber}`);
+export async function upsertInstructorToDb(
+  instructor: InstructorRecord
+): Promise<InstructorRecord> {
+  const safeId = makeSafeDocId(instructor.id || `INST-${instructor.docNumber}`).slice(0, 64);
   const path = `${INSTRUCTORS_COLLECTION}/${safeId}`;
   const docRef = doc(db, INSTRUCTORS_COLLECTION, safeId);
+  const sanitizedFichas = Array.from(
+    new Set(instructor.fichas.map((f) => f.trim()).filter((f) => f.length > 0))
+  ).slice(0, 50);
+
+  if (sanitizedFichas.length === 0) {
+    throw new Error('El instructor debe tener al menos una ficha asignada.');
+  }
+
+  const sanitizedFields = {
+    fullName: instructor.fullName.trim().slice(0, 150),
+    docNumber: instructor.docNumber.trim().slice(0, 40),
+    username: instructor.username.trim().toLowerCase().slice(0, 120),
+    password: instructor.password.trim().slice(0, 120),
+    fichas: sanitizedFichas,
+  };
+
   try {
     const snap = await getDoc(docRef);
     if (snap.exists()) {
       const existingData = snap.data() as InstructorRecord;
-      await updateDoc(docRef, stripUndefined({
-        fullName: instructor.fullName.trim().slice(0, 150),
-        docNumber: instructor.docNumber.trim().slice(0, 40),
-        username: instructor.username.trim().slice(0, 120),
-        password: instructor.password.trim().slice(0, 120),
-        fichas: instructor.fichas.slice(0, 50),
-      }));
-      void existingData;
+      await updateDoc(docRef, stripUndefined(sanitizedFields));
+      return stripUndefined({
+        ...existingData,
+        ...sanitizedFields,
+        id: existingData.id,
+        registeredAt: existingData.registeredAt,
+      });
     } else {
-      await setDoc(docRef, stripUndefined({
-        ...instructor,
+      const created: InstructorRecord = stripUndefined({
         id: safeId,
-        fullName: instructor.fullName.trim().slice(0, 150),
-        docNumber: instructor.docNumber.trim().slice(0, 40),
-        username: instructor.username.trim().slice(0, 120),
-        password: instructor.password.trim().slice(0, 120),
-        fichas: instructor.fichas.slice(0, 50),
+        ...sanitizedFields,
         registeredAt: (instructor.registeredAt || new Date().toLocaleDateString('es-CO')).slice(0, 40),
-      }));
+      });
+      await setDoc(docRef, created);
+      return created;
     }
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
@@ -343,7 +382,8 @@ export async function saveCertificateToDb(cert: EvaluationResult): Promise<void>
 
 export async function seedInitialDataIfNeeded(
   defaultApprentices: ApprenticeRecord[],
-  defaultInstructors: InstructorRecord[]
+  defaultInstructors: InstructorRecord[],
+  localInstructorsToMigrate: InstructorRecord[] = []
 ): Promise<void> {
   try {
     const appSnap = await getDocs(query(collection(db, APPRENTICES_COLLECTION), limit(1)));
@@ -357,17 +397,50 @@ export async function seedInitialDataIfNeeded(
       }
     }
 
-    const instSnap = await getDocs(query(collection(db, INSTRUCTORS_COLLECTION), limit(1)));
-    if (instSnap.empty) {
+    const existingInstSnap = await getDocs(collection(db, INSTRUCTORS_COLLECTION));
+    const existingIds = new Set(existingInstSnap.docs.map((d) => d.id));
+
+    if (existingInstSnap.empty) {
       for (const inst of defaultInstructors) {
-        const safeId = makeSafeDocId(inst.id);
+        const safeId = makeSafeDocId(inst.id).slice(0, 64);
         await setDoc(
           doc(db, INSTRUCTORS_COLLECTION, safeId),
           stripUndefined({ ...inst, id: safeId })
         );
+        existingIds.add(safeId);
+      }
+    }
+
+    for (const localInst of localInstructorsToMigrate) {
+      const safeId = makeSafeDocId(localInst.id || `INST-${localInst.docNumber}`).slice(0, 64);
+      if (!existingIds.has(safeId)) {
+        const sanitizedFichas = Array.from(
+          new Set(localInst.fichas.map((f) => f.trim()).filter((f) => f.length > 0))
+        ).slice(0, 50);
+        if (
+          sanitizedFichas.length > 0 &&
+          localInst.fullName.trim() &&
+          localInst.docNumber.trim() &&
+          localInst.username.trim() &&
+          localInst.password.trim()
+        ) {
+          await setDoc(
+            doc(db, INSTRUCTORS_COLLECTION, safeId),
+            stripUndefined({
+              id: safeId,
+              fullName: localInst.fullName.trim().slice(0, 150),
+              docNumber: localInst.docNumber.trim().slice(0, 40),
+              username: localInst.username.trim().toLowerCase().slice(0, 120),
+              password: localInst.password.trim().slice(0, 120),
+              fichas: sanitizedFichas,
+              registeredAt: (localInst.registeredAt || new Date().toLocaleDateString('es-CO')).slice(0, 40),
+            })
+          );
+          existingIds.add(safeId);
+        }
       }
     }
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, APPRENTICES_COLLECTION);
+    handleFirestoreError(error, OperationType.WRITE, INSTRUCTORS_COLLECTION);
   }
 }

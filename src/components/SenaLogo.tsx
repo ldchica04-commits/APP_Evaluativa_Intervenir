@@ -6,12 +6,14 @@ interface SenaLogoProps {
   className?: string;
   variant?: 'color' | 'white';
   showText?: boolean;
+  textClassName?: string;
 }
 
 export const SenaLogo: React.FC<SenaLogoProps> = ({
   className = "h-10",
   variant = 'color',
   showText = true,
+  textClassName = "text-xs sm:text-sm tracking-wider",
 }) => {
   const fillColor = variant === 'color' ? '#39a900' : '#FFFFFF';
   const textColor = variant === 'color' ? '#00324D' : '#FFFFFF';
@@ -42,13 +44,13 @@ export const SenaLogo: React.FC<SenaLogoProps> = ({
       {showText && (
         <div className="flex flex-col leading-tight select-none">
           <span 
-            className="font-display font-extrabold text-xs sm:text-sm tracking-wider uppercase"
+            className={`font-display font-extrabold uppercase ${textClassName}`}
             style={{ color: textColor }}
           >
             Centro de Servicios y Gestión Empresarial - Regional Antioquia
           </span>
           <span 
-            className="text-xs sm:text-sm font-black tracking-wider uppercase text-[#007832]"
+            className={`font-black uppercase text-[#007832] ${textClassName}`}
           >
             Programa Tecnólogo en Gestión Empresarial
           </span>

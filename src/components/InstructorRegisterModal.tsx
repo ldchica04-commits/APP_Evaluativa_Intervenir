@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { InstructorRecord } from '../types';
 import { SenaLogo } from './SenaLogo';
 import { 
@@ -17,12 +17,14 @@ import {
 
 interface InstructorRegisterModalProps {
   availableFichas: string[];
-  onRegisterSuccess: (newInstructor: InstructorRecord) => void;
+  existingInstructors?: InstructorRecord[];
+  onRegisterSuccess: (newInstructor: InstructorRecord) => Promise<void> | void;
   onClose: () => void;
 }
 
 export const InstructorRegisterModal: React.FC<InstructorRegisterModalProps> = ({
   availableFichas,
+  existingInstructors = [],
   onRegisterSuccess,
   onClose,
 }) => {
@@ -34,12 +36,23 @@ export const InstructorRegisterModal: React.FC<InstructorRegisterModalProps> = (
     availableFichas.length > 0 ? [availableFichas[0]] : ['2874195']
   );
   const [customFicha, setCustomFicha] = useState('');
+  const [savedFichas, setSavedFichas] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState(false);
+  const closeTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (closeTimerRef.current !== null) {
+        window.clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleToggleFicha = (fichaStr: string) => {
     if (selectedFichas.includes(fichaStr)) {
-      if (selectedFichas.length === 1) return; // Must have at least 1 ficha
+      if (selectedFichas.length === 1 && !customFicha.trim()) return; // Must have at least 1 ficha
       setSelectedFichas(selectedFichas.filter((f) => f !== fichaStr));
     } else {
       setSelectedFichas([...selectedFichas, fichaStr]);
@@ -54,35 +67,87 @@ export const InstructorRegisterModal: React.FC<InstructorRegisterModalProps> = (
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage('');
 
-    if (!fullName.trim() || !username.trim() || !password.trim() || !docNumber.trim()) {
+    const trimmedName = fullName.trim();
+    const trimmedDoc = docNumber.trim();
+    const normalizedUser = username.trim().toLowerCase();
+    const trimmedPass = password.trim();
+    const pendingCustomFicha = customFicha.trim();
+
+    const finalFichas = Array.from(
+      new Set([
+        ...selectedFichas.map((f) => f.trim()).filter(Boolean),
+        ...(pendingCustomFicha ? [pendingCustomFicha] : []),
+      ])
+    );
+
+    if (!trimmedName || !normalizedUser || !trimmedPass || !trimmedDoc) {
       setErrorMessage('Por favor diligencie todos los campos obligatorios del instructor.');
       return;
     }
 
-    if (selectedFichas.length === 0) {
+    if (trimmedPass.length < 4) {
+      setErrorMessage('La contraseña debe tener al menos 4 caracteres.');
+      return;
+    }
+
+    if (normalizedUser === 'admon') {
+      setErrorMessage('El usuario ADMON está reservado para el Administrador General.');
+      return;
+    }
+
+    if (finalFichas.length === 0) {
       setErrorMessage('Debe asociar al menos una ficha de formación a este instructor.');
       return;
     }
 
-    const sanitizedDocId = docNumber.trim().replace(/[^a-zA-Z0-9_-]/g, '') || String(Date.now());
+    const sanitizedDocId = trimmedDoc.replace(/[^a-zA-Z0-9_-]/g, '') || String(Date.now());
+    const newId = `INST-${sanitizedDocId}`.slice(0, 64);
+
+    const duplicateInstructor = existingInstructors.find(
+      (inst) =>
+        inst.id === newId ||
+        inst.docNumber.trim() === trimmedDoc ||
+        inst.username.trim().toLowerCase() === normalizedUser
+    );
+
+    if (duplicateInstructor) {
+      setErrorMessage(
+        'Ya existe un instructor registrado con ese número de documento o usuario institucional.'
+      );
+      return;
+    }
+
     const newInstructor: InstructorRecord = {
-      id: `INST-${sanitizedDocId}`,
-      fullName: fullName.trim(),
-      docNumber: docNumber.trim(),
-      username: username.trim().toLowerCase(),
-      password: password.trim(),
-      fichas: selectedFichas,
+      id: newId,
+      fullName: trimmedName,
+      docNumber: trimmedDoc,
+      username: normalizedUser,
+      password: trimmedPass,
+      fichas: finalFichas,
       registeredAt: new Date().toLocaleDateString('es-CO'),
     };
 
-    setSuccessMessage(true);
-    setTimeout(() => {
-      onRegisterSuccess(newInstructor);
-    }, 1200);
+    setIsSubmitting(true);
+    try {
+      await onRegisterSuccess(newInstructor);
+      setSavedFichas(finalFichas);
+      setSuccessMessage(true);
+      closeTimerRef.current = window.setTimeout(() => {
+        onClose();
+      }, 1200);
+    } catch (err) {
+      console.error('Error al registrar instructor:', err);
+      setErrorMessage(
+        'No se pudo almacenar el instructor en la base de datos. Verifique su conexión e intente nuevamente.'
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -125,7 +190,7 @@ export const InstructorRegisterModal: React.FC<InstructorRegisterModalProps> = (
                 ¡Cuenta de Instructor Creada Exitosamente!
               </h3>
               <p className="text-xs text-slate-600 max-w-md mx-auto">
-                Bienvenido(a), <strong>{fullName}</strong>. Su usuario y contraseña han sido registrados. Ingresando a las fichas asociadas: <strong className="font-mono text-[#007832]">{selectedFichas.join(', ')}</strong>...
+                Bienvenido(a), <strong>{fullName}</strong>. Su usuario y contraseña han sido almacenados en la base de datos. Fichas asociadas: <strong className="font-mono text-[#007832]">{savedFichas.join(', ')}</strong>.
               </p>
             </div>
           ) : (
@@ -277,10 +342,11 @@ export const InstructorRegisterModal: React.FC<InstructorRegisterModalProps> = (
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 text-xs font-bold text-white bg-[#39A900] hover:bg-[#007832] rounded-xl shadow-md flex items-center gap-2 transition-all hover:scale-[1.02] cursor-pointer"
+                  disabled={isSubmitting}
+                  className="px-5 py-2.5 text-xs font-bold text-white bg-[#39A900] hover:bg-[#007832] disabled:opacity-60 disabled:cursor-not-allowed rounded-xl shadow-md flex items-center gap-2 transition-all hover:scale-[1.02] cursor-pointer"
                 >
                   <UserPlus className="w-4 h-4" />
-                  <span>Crear Cuenta de Instructor</span>
+                  <span>{isSubmitting ? 'Guardando...' : 'Crear Cuenta de Instructor'}</span>
                 </button>
               </div>
             </form>

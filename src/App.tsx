@@ -207,10 +207,29 @@ export default function App() {
 
     const initFirestore = async () => {
       try {
+        let localInstructorsToMigrate: InstructorRecord[] = [];
+        try {
+          const alreadyMigrated = localStorage.getItem('sena_firestore_instructors_migrated') === 'true';
+          if (!alreadyMigrated) {
+            const storedInst = localStorage.getItem('sena_instructors_registry');
+            if (storedInst) {
+              const parsed = JSON.parse(storedInst);
+              if (Array.isArray(parsed)) {
+                localInstructorsToMigrate = parsed;
+              }
+            }
+          }
+        } catch {}
+
         await seedInitialDataIfNeeded(
           DEFAULT_APPRENTICES_REGISTRY,
-          DEFAULT_INSTRUCTORS_REGISTRY
+          DEFAULT_INSTRUCTORS_REGISTRY,
+          localInstructorsToMigrate
         );
+
+        try {
+          localStorage.setItem('sena_firestore_instructors_migrated', 'true');
+        } catch {}
       } catch (err) {
         console.error('Error seeding Firestore:', err);
       }
@@ -282,18 +301,25 @@ export default function App() {
     } catch {}
   }, [instructorsRegistry]);
 
-  const handleRegisterInstructorSuccess = (newInstructor: InstructorRecord) => {
-    setInstructorsRegistry((prev) => [newInstructor, ...prev.filter((i) => i.id !== newInstructor.id)]);
-    upsertInstructorToDb(newInstructor).catch((err) => console.error(err));
-    setIsRegisterInstructorOpen(false);
-    setIsInstructorPanelOpen(true);
+  const handleRegisterInstructorSuccess = async (newInstructor: InstructorRecord) => {
+    const persisted = await upsertInstructorToDb(newInstructor);
+    setInstructorsRegistry((prev) => [
+      persisted,
+      ...prev.filter((i) => i.id !== persisted.id),
+    ]);
   };
 
   const handleUpdateInstructor = (updatedInstructor: InstructorRecord) => {
     setInstructorsRegistry((prev) =>
       prev.map((i) => (i.id === updatedInstructor.id ? updatedInstructor : i))
     );
-    upsertInstructorToDb(updatedInstructor).catch((err) => console.error(err));
+    upsertInstructorToDb(updatedInstructor)
+      .then((persisted) => {
+        setInstructorsRegistry((prev) =>
+          prev.map((i) => (i.id === persisted.id ? persisted : i))
+        );
+      })
+      .catch((err) => console.error(err));
   };
 
   const handleDeleteInstructor = (instructorId: string) => {
@@ -370,26 +396,39 @@ export default function App() {
     saveCertificateToDb(result).catch((err) => console.error(err));
   };
 
-  const syncApprenticeToRegistryAndDb = (apprenticeData: ApprenticeInfo): ApprenticeRecord => {
+  const syncApprenticeToRegistryAndDb = (
+    apprenticeData: ApprenticeInfo,
+    options?: { fromLogin?: boolean }
+  ): ApprenticeRecord => {
     const normalizedDoc = apprenticeData.docNumber.trim();
     const safeId = makeSafeDocId(normalizedDoc);
     const existing = apprenticesRegistry.find(
       (a) => a.id === safeId || a.docNumber.trim() === normalizedDoc
     );
+    const preserveLocation = options?.fromLogin === true && Boolean(existing);
 
     const recordToSave: ApprenticeRecord = {
       ...(existing || {}),
       ...apprenticeData,
       id: existing?.id || safeId,
-      fullName: apprenticeData.fullName.trim(),
-      docNumber: normalizedDoc,
-      ficha: apprenticeData.ficha.trim(),
-      center: (apprenticeData.center || existing?.center || 'Centro de Servicios y Gestión Empresarial').trim(),
-      regional: (apprenticeData.regional || existing?.regional || 'Regional Antioquia').trim(),
+      fullName: apprenticeData.fullName.trim() || existing?.fullName || '',
+      docType: apprenticeData.docType || existing?.docType || 'C.C.',
+      docNumber: normalizedDoc || existing?.docNumber || '',
+      ficha: apprenticeData.ficha.trim() || existing?.ficha || '',
+      center: preserveLocation && existing?.center
+        ? existing.center
+        : (apprenticeData.center || existing?.center || 'Centro de Servicios y Gestión Empresarial').trim(),
+      regional: preserveLocation && existing?.regional
+        ? existing.regional
+        : (apprenticeData.regional || existing?.regional || 'Regional Antioquia').trim(),
       kolbResult:
         apprenticeData.kolbResult !== undefined && apprenticeData.kolbResult !== null
           ? apprenticeData.kolbResult
           : existing?.kolbResult ?? null,
+      rapsProgress: existing?.rapsProgress,
+      attemptsCountByRap: existing?.attemptsCountByRap,
+      totalAttempts: existing?.totalAttempts,
+      lastResult: existing?.lastResult,
       registeredAt: existing?.registeredAt || new Date().toLocaleDateString('es-CO'),
       updatedAt: new Date().toISOString(),
     };
@@ -406,8 +445,15 @@ export default function App() {
       return [recordToSave, ...prev];
     });
 
-    upsertApprenticeToDb(recordToSave)
+    upsertApprenticeToDb(recordToSave, { preserveExistingLocation: options?.fromLogin === true })
       .then((persisted) => {
+        setApprenticesRegistry((prev) =>
+          prev.map((a) =>
+            a.id === persisted.id || a.docNumber.trim() === persisted.docNumber.trim()
+              ? persisted
+              : a
+          )
+        );
         setApprentice((curr) =>
           curr.docNumber.trim() === persisted.docNumber.trim()
             ? { ...curr, ...persisted }
@@ -423,7 +469,7 @@ export default function App() {
   };
 
   const handleLoginSuccess = (apprenticeData: ApprenticeInfo, shouldPromptKolb: boolean) => {
-    const savedRecord = syncApprenticeToRegistryAndDb(apprenticeData);
+    const savedRecord = syncApprenticeToRegistryAndDb(apprenticeData, { fromLogin: true });
     setApprentice(savedRecord);
     setRapsProgress(savedRecord.rapsProgress || createEmptyRapsProgress());
     setIsAuthenticated(true);
@@ -494,7 +540,8 @@ export default function App() {
       <>
         <ApprenticeLoginLanding
           initialData={apprentice}
-          onRegisterApprentice={syncApprenticeToRegistryAndDb}
+          existingApprentices={apprenticesRegistry}
+          onRegisterApprentice={(data) => syncApprenticeToRegistryAndDb(data, { fromLogin: true })}
           onLoginSuccess={handleLoginSuccess}
           onOpenInstructorPanel={() => setIsInstructorPanelOpen(true)}
           onOpenManual={() => {
@@ -512,6 +559,7 @@ export default function App() {
             onDeleteApprentice={handleDeleteApprenticeFromInstructor}
             onUpdateInstructor={handleUpdateInstructor}
             onDeleteInstructor={handleDeleteInstructor}
+            onInstructorsSynced={setInstructorsRegistry}
             onOpenAnalyticsDashboard={(fichas) => {
               setAnalyticsAllowedFichas(fichas);
               setIsAnalyticsDashboardOpen(true);
@@ -528,6 +576,7 @@ export default function App() {
         {isRegisterInstructorOpen && (
           <InstructorRegisterModal
             availableFichas={Array.from(new Set(apprenticesRegistry.map((a) => a.ficha)))}
+            existingInstructors={instructorsRegistry}
             onRegisterSuccess={handleRegisterInstructorSuccess}
             onClose={() => setIsRegisterInstructorOpen(false)}
           />
@@ -704,6 +753,7 @@ export default function App() {
           onDeleteApprentice={handleDeleteApprenticeFromInstructor}
           onUpdateInstructor={handleUpdateInstructor}
           onDeleteInstructor={handleDeleteInstructor}
+          onInstructorsSynced={setInstructorsRegistry}
           onOpenAnalyticsDashboard={(fichas) => {
             setAnalyticsAllowedFichas(fichas);
             setIsAnalyticsDashboardOpen(true);
@@ -721,6 +771,7 @@ export default function App() {
       {isRegisterInstructorOpen && (
         <InstructorRegisterModal
           availableFichas={Array.from(new Set(apprenticesRegistry.map((a) => a.ficha)))}
+          existingInstructors={instructorsRegistry}
           onRegisterSuccess={handleRegisterInstructorSuccess}
           onClose={() => setIsRegisterInstructorOpen(false)}
         />

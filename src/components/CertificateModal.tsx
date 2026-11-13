@@ -28,7 +28,12 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({ result, onCl
                 {/* Cuadrante Izquierdo: Logo SENA */}
                 <td className="w-1/4 border border-slate-400 p-2.5 text-center align-middle bg-slate-50/60">
                   <div className="flex flex-col items-center justify-center">
-                    <SenaLogo className="h-12 w-auto" variant="color" showText={true} />
+                    <SenaLogo
+                      className="h-12 w-auto"
+                      variant="color"
+                      showText={true}
+                      textClassName="text-[6.5px] sm:text-[7.5px] leading-[1.15] tracking-normal text-left"
+                    />
                     <span className="text-[8.5px] font-bold text-[#00324D] uppercase mt-1 tracking-wider">
                       SENA · Regional Colombia
                     </span>

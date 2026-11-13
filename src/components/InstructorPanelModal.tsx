@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { ManageInstructorsModal } from './ManageInstructorsModal';
 import { CertificatesHistoryModal } from './CertificatesHistoryModal';
+import { fetchInstructorsFromDb } from '../services/firestoreService';
 
 interface InstructorPanelModalProps {
   apprentices: ApprenticeRecord[];
@@ -43,6 +44,7 @@ interface InstructorPanelModalProps {
   onDeleteApprentice: (docNumber: string) => void;
   onUpdateInstructor?: (updated: InstructorRecord) => void;
   onDeleteInstructor?: (instructorId: string) => void;
+  onInstructorsSynced?: (records: InstructorRecord[]) => void;
   onOpenAnalyticsDashboard?: (fichas?: string[]) => void;
   onOpenRegisterInstructor?: () => void;
   onViewCertificate?: (cert: EvaluationResult) => void;
@@ -57,6 +59,7 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
   onDeleteApprentice,
   onUpdateInstructor,
   onDeleteInstructor,
+  onInstructorsSynced,
   onOpenAnalyticsDashboard,
   onOpenRegisterInstructor,
   onViewCertificate,
@@ -68,6 +71,7 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loggedInInstructor, setLoggedInInstructor] = useState<InstructorRecord | null>(null);
   const [authError, setAuthError] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isManageInstructorsOpen, setIsManageInstructorsOpen] = useState(false);
   const [isCertificatesHistoryOpen, setIsCertificatesHistoryOpen] = useState(false);
 
@@ -81,8 +85,32 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
   // Delete Confirmation State
   const [deletingApprentice, setDeletingApprentice] = useState<ApprenticeRecord | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const activeLoggedInInstructor = loggedInInstructor
+    ? instructors.find((i) => i.id === loggedInInstructor.id) || loggedInInstructor
+    : null;
+
+  const findMatchingInstructor = (
+    list: InstructorRecord[],
+    inputUser: string,
+    inputPass: string
+  ): InstructorRecord | undefined => {
+    const exactMatch = list.find(
+      (inst) =>
+        (inst.username.trim().toLowerCase() === inputUser ||
+          inst.docNumber.trim().toLowerCase() === inputUser) &&
+        inst.password.trim() === inputPass
+    );
+    if (exactMatch) return exactMatch;
+
+    if (!inputUser) {
+      return list.find((inst) => inst.password.trim() === inputPass);
+    }
+    return undefined;
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoggingIn) return;
     setAuthError('');
 
     const inputPass = passwordInput.trim();
@@ -107,25 +135,31 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
       return;
     }
 
-    // Check registered instructors list
-    const matchedInstructor = instructors.find(
-      (inst) =>
-        (inst.username.toLowerCase() === inputUser || inst.docNumber === inputUser) &&
-        inst.password === inputPass
-    );
-
-    if (matchedInstructor) {
+    // Check registered instructors currently in memory
+    const matchedInMemory = findMatchingInstructor(instructors, inputUser, inputPass);
+    if (matchedInMemory) {
       setIsAuthenticated(true);
-      setLoggedInInstructor(matchedInstructor);
+      setLoggedInInstructor(matchedInMemory);
       return;
     }
 
-    // Also check if password matches any instructor directly
-    const matchedByPassword = instructors.find((inst) => inst.password === inputPass);
-    if (matchedByPassword) {
-      setIsAuthenticated(true);
-      setLoggedInInstructor(matchedByPassword);
-      return;
+    // Fallback: query Firestore directly in case a newly registered instructor has not arrived via listener yet
+    setIsLoggingIn(true);
+    try {
+      const freshInstructors = await fetchInstructorsFromDb();
+      if (onInstructorsSynced && freshInstructors.length > 0) {
+        onInstructorsSynced(freshInstructors);
+      }
+      const matchedFromDb = findMatchingInstructor(freshInstructors, inputUser, inputPass);
+      if (matchedFromDb) {
+        setIsAuthenticated(true);
+        setLoggedInInstructor(matchedFromDb);
+        return;
+      }
+    } catch (err) {
+      console.error('Error consultando instructores en Firestore:', err);
+    } finally {
+      setIsLoggingIn(false);
     }
 
     setAuthError('Usuario o contraseña incorrectos. Usuario administrador: ADMON (Clave: admonsena123).');
@@ -174,10 +208,10 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
     };
   };
 
-  // Scope apprentices by loggedInInstructor's assigned fichas if logged in as individual instructor
-  const scopedApprentices = loggedInInstructor
+  // Scope apprentices by activeLoggedInInstructor's assigned fichas if logged in as individual instructor
+  const scopedApprentices = activeLoggedInInstructor
     ? apprentices.filter((app) =>
-        loggedInInstructor.fichas.some((f) => f.trim() === app.ficha.trim())
+        activeLoggedInInstructor.fichas.some((f) => f.trim() === app.ficha.trim())
       )
     : apprentices;
 
@@ -437,9 +471,10 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-3 px-4 text-xs font-bold text-white bg-[#39A900] hover:bg-[#007832] rounded-xl shadow-md transition-all hover:scale-[1.01] cursor-pointer mt-1"
+                disabled={isLoggingIn}
+                className="w-full py-3 px-4 text-xs font-bold text-white bg-[#39A900] hover:bg-[#007832] disabled:opacity-60 disabled:cursor-not-allowed rounded-xl shadow-md transition-all hover:scale-[1.01] cursor-pointer mt-1"
               >
-                Acceder al Espacio del Instructor
+                {isLoggingIn ? 'Verificando credenciales...' : 'Acceder al Espacio del Instructor'}
               </button>
             </form>
 
@@ -474,7 +509,7 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
           <div className="p-6 sm:p-8 overflow-y-auto space-y-6 flex-1 bg-slate-50">
             
             {/* Logged in Admin or Instructor Banner */}
-            {!loggedInInstructor ? (
+            {!activeLoggedInInstructor ? (
               <div className="p-4 rounded-xl bg-gradient-to-r from-slate-900 via-slate-800 to-[#00324D] text-white border border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-[#39A900] text-white flex items-center justify-center font-bold">
@@ -511,14 +546,14 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
                       Instructor Autenticado · FPI SENA
                     </div>
                     <div className="text-sm font-black text-[#00324D]">
-                      {loggedInInstructor.fullName} ({loggedInInstructor.username})
+                      {activeLoggedInInstructor.fullName} ({activeLoggedInInstructor.username})
                     </div>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-bold text-slate-600">Fichas Asignadas:</span>
-                  {loggedInInstructor.fichas.map((f) => (
+                  {activeLoggedInInstructor.fichas.map((f) => (
                     <span key={f} className="px-2.5 py-1 rounded-lg bg-white border border-emerald-300 text-xs font-mono font-bold text-[#007832] shadow-2xs">
                       Ficha {f}
                     </span>
@@ -617,7 +652,7 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
 
               {/* Action Buttons: Manage Instructors, Analytics Dashboard & Export CSV */}
               <div className="flex flex-wrap items-center gap-2.5 w-full pt-3 border-t border-slate-100">
-                {!loggedInInstructor && (
+                {!activeLoggedInInstructor && (
                   <button
                     onClick={() => setIsManageInstructorsOpen(true)}
                     className="px-3.5 py-2.5 text-xs font-bold text-[#00324D] bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] cursor-pointer"
@@ -648,7 +683,7 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
 
                 {onOpenAnalyticsDashboard && (
                   <button
-                    onClick={() => onOpenAnalyticsDashboard(loggedInInstructor ? loggedInInstructor.fichas : undefined)}
+                    onClick={() => onOpenAnalyticsDashboard(activeLoggedInInstructor ? activeLoggedInInstructor.fichas : undefined)}
                     className="px-4 py-2.5 text-xs font-bold text-white bg-[#00324D] hover:bg-[#002235] rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all hover:scale-[1.02] cursor-pointer"
                     title="Ver Dashboard de gráficos sobre Estilos de Aprendizaje y Eficiencia"
                   >
@@ -1026,7 +1061,7 @@ export const InstructorPanelModal: React.FC<InstructorPanelModalProps> = ({
           <CertificatesHistoryModal
             allCertificates={allCertificates}
             apprentices={apprentices}
-            loggedInInstructor={loggedInInstructor}
+            loggedInInstructor={activeLoggedInInstructor}
             onViewCertificate={(cert) => {
               if (onViewCertificate) onViewCertificate(cert);
             }}

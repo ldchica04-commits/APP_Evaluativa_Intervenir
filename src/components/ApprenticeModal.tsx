@@ -17,7 +17,15 @@ export const ApprenticeModal: React.FC<ApprenticeModalProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    onSave({
+      ...currentInfo,
+      ...formData,
+      fullName: formData.fullName.trim() || currentInfo.fullName,
+      docNumber: formData.docNumber.trim() || currentInfo.docNumber,
+      ficha: formData.ficha.trim() || currentInfo.ficha,
+      center: formData.center.trim() || currentInfo.center,
+      regional: formData.regional.trim() || currentInfo.regional,
+    });
     onClose();
   };
 

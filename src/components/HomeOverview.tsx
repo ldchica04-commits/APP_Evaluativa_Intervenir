@@ -102,125 +102,6 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
         </div>
       </div>
 
-      {/* Matriz Pedagógica: Técnicas e Instrumentos de Evaluación por Estilo Kolb */}
-      <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-wider text-[#007832] flex items-center gap-1.5">
-              <Target className="w-3.5 h-3.5 text-[#39A900]" />
-              <span>Modelo de Evaluación por Competencias · FPI SENA</span>
-            </div>
-            <h3 className="text-lg font-extrabold text-[#00324D] mt-0.5">
-              Técnicas e Instrumentos de Evaluación Diferenciados por Estilo de Aprendizaje
-            </h3>
-            <p className="text-xs text-slate-600 mt-1">
-              Cada estilo cuenta con una <strong>técnica pedagógica especializada</strong> diseñada para medir el desempeño con el instrumento más útil y pertinente a su perfil cognitivo:
-            </p>
-          </div>
-          <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 self-start md:self-auto shrink-0">
-            Regla: Aprobado con ≥ 70% en 1 sola prueba
-          </span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 mt-4">
-          {/* Acomodador */}
-          <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
-                  Acomodador
-                </span>
-                <span className="text-[10px] font-bold text-emerald-700">Desempeño</span>
-              </div>
-              <div className="text-xs font-bold text-[#00324D] mb-1">
-                Simulación de Incidentes Críticos
-              </div>
-              <div className="text-[11px] text-slate-600 leading-snug">
-                <strong className="text-slate-700">Técnica:</strong> Simulación de contingencias operativas en tiempo real.
-              </div>
-              <div className="text-[11px] text-slate-600 leading-snug mt-1">
-                <strong className="text-slate-700">Instrumento:</strong> Guía de decisión inmediata en piso.
-              </div>
-            </div>
-            <div className="mt-3 pt-2 border-t border-emerald-200/60 text-[10px] text-emerald-800 font-medium italic">
-              "Aprende haciendo y respondiendo a imprevistos operativos en planta."
-            </div>
-          </div>
-
-          {/* Divergente */}
-          <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-200 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-blue-100 text-blue-800 border border-blue-300">
-                  Divergente
-                </span>
-                <span className="text-[10px] font-bold text-blue-700">Colaborativo</span>
-              </div>
-              <div className="text-xs font-bold text-[#00324D] mb-1">
-                Estudio de Caso Organizacional
-              </div>
-              <div className="text-[11px] text-slate-600 leading-snug">
-                <strong className="text-slate-700">Técnica:</strong> Análisis holístico de clima y partes interesadas.
-              </div>
-              <div className="text-[11px] text-slate-600 leading-snug mt-1">
-                <strong className="text-slate-700">Instrumento:</strong> Rúbrica de criterios cualitativos e innovación.
-              </div>
-            </div>
-            <div className="mt-3 pt-2 border-t border-blue-200/60 text-[10px] text-blue-800 font-medium italic">
-              "Aprende integrando múltiples perspectivas humanas y empatía."
-            </div>
-          </div>
-
-          {/* Convergente */}
-          <div className="p-4 rounded-2xl bg-teal-50/50 border border-teal-200 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-teal-100 text-teal-800 border border-teal-300">
-                  Convergente
-                </span>
-                <span className="text-[10px] font-bold text-teal-700">Técnico</span>
-              </div>
-              <div className="text-xs font-bold text-[#00324D] mb-1">
-                Modelado Cuantitativo & 5W2H
-              </div>
-              <div className="text-[11px] text-slate-600 leading-snug">
-                <strong className="text-slate-700">Técnica:</strong> Resolución deductiva de problemas y fórmulas.
-              </div>
-              <div className="text-[11px] text-slate-600 leading-snug mt-1">
-                <strong className="text-slate-700">Instrumento:</strong> Cuestionario de casos cuantitativos y planes 5W2H.
-              </div>
-            </div>
-            <div className="mt-3 pt-2 border-t border-teal-200/60 text-[10px] text-teal-800 font-medium italic">
-              "Aprende aplicando lógica deductiva, métricas y datos cuantitativos."
-            </div>
-          </div>
-
-          {/* Asimilador */}
-          <div className="p-4 rounded-2xl bg-indigo-50/50 border border-indigo-200 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-indigo-100 text-indigo-800 border border-indigo-300">
-                  Asimilador
-                </span>
-                <span className="text-[10px] font-bold text-indigo-700">Sistémico</span>
-              </div>
-              <div className="text-xs font-bold text-[#00324D] mb-1">
-                Auditoría de Conformidad Normativa
-              </div>
-              <div className="text-[11px] text-slate-600 leading-snug">
-                <strong className="text-slate-700">Técnica:</strong> Verificación de estándares ISO (9001/19011) y PHVA.
-              </div>
-              <div className="text-[11px] text-slate-600 leading-snug mt-1">
-                <strong className="text-slate-700">Instrumento:</strong> Lista maestra de verificación y coherencia estructural.
-              </div>
-            </div>
-            <div className="mt-3 pt-2 border-t border-indigo-200/60 text-[10px] text-indigo-800 font-medium italic">
-              "Aprende estructurando modelos conceptuales y taxonomías normativas."
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* RAPs Cards Section */}
       <div>
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-6">
@@ -350,6 +231,125 @@ export const HomeOverview: React.FC<HomeOverviewProps> = ({
             <p className="text-[11px] leading-relaxed">
               Generación de constancias oficiales imprimibles y descargables con desglose pormenorizado y código de verificación institucional.
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Matriz Pedagógica: Técnicas e Instrumentos de Evaluación por Estilo Kolb */}
+      <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-wider text-[#007832] flex items-center gap-1.5">
+              <Target className="w-3.5 h-3.5 text-[#39A900]" />
+              <span>Modelo de Evaluación por Competencias · FPI SENA</span>
+            </div>
+            <h3 className="text-lg font-extrabold text-[#00324D] mt-0.5">
+              Técnicas e Instrumentos de Evaluación Diferenciados por Estilo de Aprendizaje
+            </h3>
+            <p className="text-xs text-slate-600 mt-1">
+              Cada estilo cuenta con una <strong>técnica pedagógica especializada</strong> diseñada para medir el desempeño con el instrumento más útil y pertinente a su perfil cognitivo:
+            </p>
+          </div>
+          <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 self-start md:self-auto shrink-0">
+            Regla: Aprobado con ≥ 70% en 1 sola prueba
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 mt-4">
+          {/* Acomodador */}
+          <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  Acomodador
+                </span>
+                <span className="text-[10px] font-bold text-emerald-700">Desempeño</span>
+              </div>
+              <div className="text-xs font-bold text-[#00324D] mb-1">
+                Simulación de Incidentes Críticos
+              </div>
+              <div className="text-[11px] text-slate-600 leading-snug">
+                <strong className="text-slate-700">Técnica:</strong> Simulación de contingencias operativas en tiempo real.
+              </div>
+              <div className="text-[11px] text-slate-600 leading-snug mt-1">
+                <strong className="text-slate-700">Instrumento:</strong> Guía de decisión inmediata en piso.
+              </div>
+            </div>
+            <div className="mt-3 pt-2 border-t border-emerald-200/60 text-[10px] text-emerald-800 font-medium italic">
+              "Aprende haciendo y respondiendo a imprevistos operativos en planta."
+            </div>
+          </div>
+
+          {/* Divergente */}
+          <div className="p-4 rounded-2xl bg-blue-50/50 border border-blue-200 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-blue-100 text-blue-800 border border-blue-300">
+                  Divergente
+                </span>
+                <span className="text-[10px] font-bold text-blue-700">Colaborativo</span>
+              </div>
+              <div className="text-xs font-bold text-[#00324D] mb-1">
+                Estudio de Caso Organizacional
+              </div>
+              <div className="text-[11px] text-slate-600 leading-snug">
+                <strong className="text-slate-700">Técnica:</strong> Análisis holístico de clima y partes interesadas.
+              </div>
+              <div className="text-[11px] text-slate-600 leading-snug mt-1">
+                <strong className="text-slate-700">Instrumento:</strong> Rúbrica de criterios cualitativos e innovación.
+              </div>
+            </div>
+            <div className="mt-3 pt-2 border-t border-blue-200/60 text-[10px] text-blue-800 font-medium italic">
+              "Aprende integrando múltiples perspectivas humanas y empatía."
+            </div>
+          </div>
+
+          {/* Convergente */}
+          <div className="p-4 rounded-2xl bg-teal-50/50 border border-teal-200 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-teal-100 text-teal-800 border border-teal-300">
+                  Convergente
+                </span>
+                <span className="text-[10px] font-bold text-teal-700">Técnico</span>
+              </div>
+              <div className="text-xs font-bold text-[#00324D] mb-1">
+                Modelado Cuantitativo & 5W2H
+              </div>
+              <div className="text-[11px] text-slate-600 leading-snug">
+                <strong className="text-slate-700">Técnica:</strong> Resolución deductiva de problemas y fórmulas.
+              </div>
+              <div className="text-[11px] text-slate-600 leading-snug mt-1">
+                <strong className="text-slate-700">Instrumento:</strong> Cuestionario de casos cuantitativos y planes 5W2H.
+              </div>
+            </div>
+            <div className="mt-3 pt-2 border-t border-teal-200/60 text-[10px] text-teal-800 font-medium italic">
+              "Aprende aplicando lógica deductiva, métricas y datos cuantitativos."
+            </div>
+          </div>
+
+          {/* Asimilador */}
+          <div className="p-4 rounded-2xl bg-indigo-50/50 border border-indigo-200 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-indigo-100 text-indigo-800 border border-indigo-300">
+                  Asimilador
+                </span>
+                <span className="text-[10px] font-bold text-indigo-700">Sistémico</span>
+              </div>
+              <div className="text-xs font-bold text-[#00324D] mb-1">
+                Auditoría de Conformidad Normativa
+              </div>
+              <div className="text-[11px] text-slate-600 leading-snug">
+                <strong className="text-slate-700">Técnica:</strong> Verificación de estándares ISO (9001/19011) y PHVA.
+              </div>
+              <div className="text-[11px] text-slate-600 leading-snug mt-1">
+                <strong className="text-slate-700">Instrumento:</strong> Lista maestra de verificación y coherencia estructural.
+              </div>
+            </div>
+            <div className="mt-3 pt-2 border-t border-indigo-200/60 text-[10px] text-indigo-800 font-medium italic">
+              "Aprende estructurando modelos conceptuales y taxonomías normativas."
+            </div>
           </div>
         </div>
       </div>
