@@ -7,6 +7,7 @@ interface SenaLogoProps {
   variant?: 'color' | 'white';
   showText?: boolean;
   textClassName?: string;
+  singleLine?: boolean;
 }
 
 export const SenaLogo: React.FC<SenaLogoProps> = ({
@@ -14,12 +15,13 @@ export const SenaLogo: React.FC<SenaLogoProps> = ({
   variant = 'color',
   showText = true,
   textClassName = "text-xs sm:text-sm tracking-wider",
+  singleLine = false,
 }) => {
   const fillColor = variant === 'color' ? '#39a900' : '#FFFFFF';
   const textColor = variant === 'color' ? '#00324D' : '#FFFFFF';
 
   return (
-    <div className={`flex items-center gap-2.5 ${className}`}>
+    <div className={`flex items-center ${singleLine ? 'gap-2 sm:gap-2.5 min-w-0 w-full sm:flex-1' : 'gap-2.5'} ${className}`}>
       {/* Official SENA SVG vector from official Illustrator master export */}
       <svg
         version="1.1"
@@ -42,15 +44,27 @@ export const SenaLogo: React.FC<SenaLogoProps> = ({
       </svg>
 
       {showText && (
-        <div className="flex flex-col leading-tight select-none">
+        <div
+          className={`flex flex-col leading-tight select-none ${
+            singleLine ? 'flex-1 min-w-0 @container' : ''
+          }`}
+        >
           <span 
-            className={`font-display font-extrabold uppercase ${textClassName}`}
+            className={`font-display font-extrabold uppercase ${
+              singleLine
+                ? 'whitespace-nowrap tracking-normal lg:tracking-wide text-[clamp(5.8px,2.35cqi,14px)]'
+                : textClassName
+            }`}
             style={{ color: textColor }}
           >
             Centro de Servicios y Gestión Empresarial - Regional Antioquia
           </span>
           <span 
-            className={`font-black uppercase text-[#007832] ${textClassName}`}
+            className={`font-black uppercase text-[#007832] ${
+              singleLine
+                ? 'whitespace-nowrap tracking-normal lg:tracking-wide text-[clamp(5.8px,2.35cqi,14px)]'
+                : textClassName
+            }`}
           >
             Programa Tecnólogo en Gestión Empresarial
           </span>

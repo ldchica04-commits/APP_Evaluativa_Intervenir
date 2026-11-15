@@ -206,10 +206,10 @@ export const ApprenticeLoginLanding: React.FC<ApprenticeLoginLandingProps> = ({
     <div className="min-h-screen bg-slate-50 flex flex-col justify-between selection:bg-[#39A900]/20 selection:text-[#007832]">
       {/* Top Brand Bar */}
       <header className="bg-white border-b border-slate-200 py-3.5 px-4 sm:px-8">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          <SenaLogo className="h-10 w-auto" variant="color" showText={true} />
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4">
+          <SenaLogo className="h-9 sm:h-10" variant="color" showText={true} singleLine={true} />
           
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center justify-end gap-2 sm:gap-2.5 shrink-0">
 
 
             {/* Manual de Uso para Aprendices Button */}
@@ -220,7 +220,7 @@ export const ApprenticeLoginLanding: React.FC<ApprenticeLoginLandingProps> = ({
                 title="Ver Manual de Uso para Aprendices (M_Aprendiz)"
               >
                 <BookOpen className="w-4 h-4 text-[#39A900]" />
-                <span className="hidden sm:inline">Manual del Aprendiz</span>
+                <span className="hidden lg:inline">Manual del Aprendiz</span>
               </button>
             )}
 
@@ -232,7 +232,7 @@ export const ApprenticeLoginLanding: React.FC<ApprenticeLoginLandingProps> = ({
               title="Ver Video del Manual del Instructor"
             >
               <Video className="w-4 h-4" />
-              <span className="hidden sm:inline">Manual del Instructor</span>
+              <span className="hidden lg:inline">Manual del Instructor</span>
             </button>
 
             <button
